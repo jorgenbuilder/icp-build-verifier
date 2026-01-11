@@ -1,3 +1,4 @@
+import { GoogleGenAI } from '@google/genai';
 import { readFileSync, writeFileSync } from 'fs';
 
 interface ProposalData {
@@ -7,6 +8,7 @@ interface ProposalData {
   url: string;
   commitHash: string | null;
   expectedWasmHash: string | null;
+  canisterId: string | null;
 }
 
 interface BuildSteps {
@@ -14,8 +16,6 @@ interface BuildSteps {
   steps: string[];
   wasmOutputPath: string;
 }
-
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 const EXTRACTION_PROMPT = `You are analyzing an ICP (Internet Computer Protocol) governance proposal to extract build verification instructions.
 
@@ -47,31 +47,18 @@ async function callGemini(prompt: string): Promise<string> {
     throw new Error('GEMINI_API_KEY environment variable is required');
   }
 
-  // Build URL without exposing key in any error messages
-  const url = new URL(GEMINI_API_URL);
-  url.searchParams.set('key', apiKey);
+  const ai = new GoogleGenAI({ apiKey });
 
-  const response = await fetch(url.toString(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [{ text: prompt }]
-      }],
-      generationConfig: {
-        temperature: 0.1, // Low temperature for more deterministic output
-        maxOutputTokens: 1024,
-      }
-    })
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.0-flash',
+    contents: prompt,
+    config: {
+      temperature: 0.1,
+      maxOutputTokens: 1024,
+    },
   });
 
-  if (!response.ok) {
-    // Don't include full error text which might contain URL with key
-    throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return response.text || '';
 }
 
 function parseGeminiResponse(response: string): { steps: string[]; wasmOutputPath: string } {
