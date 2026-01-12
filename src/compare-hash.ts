@@ -25,11 +25,26 @@ interface ProposalData {
   expectedWasmHash: string | null;
 }
 
-function computeSha256(filePath: string): string {
+export function computeSha256(filePath: string): string {
   const fileBuffer = readFileSync(filePath);
   const hash = createHash('sha256');
   hash.update(fileBuffer);
   return hash.digest('hex');
+}
+
+export function compareHashes(actualHash: string, expectedHash: string | null): {
+  match: boolean;
+  status: 'verified' | 'failed' | 'error';
+} {
+  if (!expectedHash) {
+    return { match: false, status: 'error' };
+  }
+
+  const match = actualHash.toLowerCase() === expectedHash.toLowerCase();
+  return {
+    match,
+    status: match ? 'verified' : 'failed',
+  };
 }
 
 function writeGitHubSummary(content: string) {
@@ -94,7 +109,7 @@ async function main() {
   console.log(`Actual hash:   ${actualHash}`);
 
   // Compare
-  const match = expectedHash && actualHash.toLowerCase() === expectedHash.toLowerCase();
+  const { match, status } = compareHashes(actualHash, expectedHash);
 
   // Write GitHub Actions summary
   const statusEmoji = match ? '✅' : (expectedHash ? '❌' : '⚠️');
@@ -156,7 +171,11 @@ ${!expectedHash ? '### ⚠️ Could not verify - expected hash not found in prop
   }
 }
 
-main().catch((err) => {
-  console.error('Error comparing hashes:', err);
-  process.exit(1);
-});
+// Only run main if this is the entry point
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+if (isMainModule) {
+  main().catch((err) => {
+    console.error('Error comparing hashes:', err);
+    process.exit(1);
+  });
+}

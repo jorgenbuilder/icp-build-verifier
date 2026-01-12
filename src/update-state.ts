@@ -77,7 +77,8 @@ async function main() {
 }
 
 // Only run main if this is the entry point
-if (require.main === module) {
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+if (isMainModule) {
   main().catch((err) => {
     console.error('Error updating state:', err);
     process.exit(1);

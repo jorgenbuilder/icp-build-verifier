@@ -1,6 +1,6 @@
 {
-  "topics": [5, 9, 17],
-  "startDate": "2025-01-01T00:00:00Z",
+  "topics": [17],
+  "startDate": "2026-01-11T00:00:00Z",
   "enabled": true,
-  "_comment": "Topics: 5=ManageNeuron, 9=UpgradeRootCanister, 17=InstallCode"
+  "_comment": "Topics: 17=InstallCode (PMC proposals only)"
 }

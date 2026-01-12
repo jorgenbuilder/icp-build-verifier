@@ -22,12 +22,35 @@ interface StateData {
   proposals: Record<string, VerifiedProposal>;
 }
 
-interface ProposalInfo {
+export interface ProposalInfo {
   id: bigint;
   topic: number;
   status: number;
   proposer: bigint;
   title: string;
+}
+
+// Exported for testing
+export function filterNewProposals(
+  proposals: ProposalInfo[],
+  trackedTopics: number[],
+  verifiedProposalIds: string[]
+): ProposalInfo[] {
+  return proposals.filter(p => {
+    const idStr = p.id.toString();
+
+    // Must be in tracked topics
+    if (!trackedTopics.includes(p.topic)) {
+      return false;
+    }
+
+    // Must not already be tracked
+    if (verifiedProposalIds.includes(idStr)) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 // IDL for list_proposals
@@ -143,25 +166,9 @@ async function main() {
   const proposals = await listProposals(100);
   console.log(`Retrieved ${proposals.length} proposals`);
 
-  // Filter proposals:
-  // 1. Topic must match our tracked topics
-  // 2. Not already verified
-  // 3. Created after our start date (we use proposal ID as proxy since IDs are sequential)
-  const newProposals = proposals.filter(p => {
-    const idStr = p.id.toString();
-
-    // Must be in tracked topics
-    if (!config.topics.includes(p.topic)) {
-      return false;
-    }
-
-    // Must not already be tracked
-    if (state.proposals[idStr]) {
-      return false;
-    }
-
-    return true;
-  });
+  // Filter proposals by topic and already-verified status
+  const verifiedIds = Object.keys(state.proposals);
+  const newProposals = filterNewProposals(proposals, config.topics, verifiedIds);
 
   console.log(`Found ${newProposals.length} new proposals matching criteria`);
   console.log('');
@@ -205,7 +212,11 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('Error monitoring proposals:', err);
-  process.exit(1);
-});
+// Only run main if this is the entry point
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+if (isMainModule) {
+  main().catch((err) => {
+    console.error('Error monitoring proposals:', err);
+    process.exit(1);
+  });
+}
