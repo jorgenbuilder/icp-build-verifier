@@ -7,7 +7,7 @@ const GOVERNANCE_CANISTER_ID = 'rrkah-fqaaa-aaaaa-aaaaq-cai';
 
 // Only verify proposals after this ID (approximately Jan 11, 2026)
 // This avoids triggering verification for old proposals
-const MIN_PROPOSAL_ID = 139900n;
+const MIN_PROPOSAL_ID = 139768n;
 
 // Only track InstallCode proposals (topic 17)
 const TRACKED_TOPICS = [17];
