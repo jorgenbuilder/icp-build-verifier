@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/dfinity/ic-build:latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -42,3 +44,14 @@ jobs:
 
       - name: Compare hashes
         run: npx tsx src/compare-hash.ts
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+
+      - name: Commit state changes
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/verified-proposals.json
+          git diff --staged --quiet || git commit -m "Update verification state for proposal #${{ inputs.proposal_id }}"
+          git push

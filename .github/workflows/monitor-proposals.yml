@@ -1,0 +1,55 @@
+name: Monitor NNS Proposals
+
+on:
+  schedule:
+    # Run every hour
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    # Allow manual triggering
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for new proposals
+        id: monitor
+        run: npx tsx src/monitor-proposals.ts
+
+      - name: Trigger verification for new proposals
+        if: steps.monitor.outputs.count > 0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Read proposal IDs from file
+          PROPOSAL_IDS=$(cat new-proposals.json)
+          echo "New proposals to verify: $PROPOSAL_IDS"
+
+          # Trigger verification workflow for each proposal
+          for id in $(echo "$PROPOSAL_IDS" | jq -r '.[]'); do
+            echo "Triggering verification for proposal $id"
+            gh workflow run verify.yml -f proposal_id="$id"
+            # Small delay to avoid rate limiting
+            sleep 2
+          done
+
+      - name: Commit state changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/verified-proposals.json
+          git diff --staged --quiet || git commit -m "Update proposal tracking state"
+          git push
