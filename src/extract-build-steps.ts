@@ -19,23 +19,26 @@ interface BuildSteps {
 
 const EXTRACTION_PROMPT = `You are analyzing an ICP (Internet Computer Protocol) governance proposal to extract build verification instructions.
 
-The proposal describes a canister upgrade. Extract the following information and return it as JSON:
+The proposal describes a canister upgrade. The dfinity/ic repository has ALREADY been cloned and the correct commit has been checked out. You are already in the repository root directory.
 
-1. The exact shell commands needed to build the WASM file from the dfinity/ic repository
-2. The expected output path of the WASM file after building
+Extract ONLY the build commands (no git commands) and the output path. Return as JSON:
 
-Return ONLY valid JSON in this exact format, no markdown code blocks, no explanation:
 {
-  "steps": ["command1", "command2", ...],
+  "steps": ["build command 1", "build command 2", ...],
   "wasmOutputPath": "path/to/output.wasm"
 }
+
+IMPORTANT:
+- Do NOT include git clone, git fetch, git checkout, or cd commands
+- The repo is already cloned and at the correct commit
+- Only include the actual build commands (e.g., bazel build, ./ci/container/build-ic.sh, etc.)
+- Return ONLY valid JSON, no markdown code blocks, no explanation
 
 Common build patterns for dfinity/ic:
 - Uses Bazel for building
 - Canisters are typically built with: bazel build //rs/path/to/canister:canister_name
-- Output is usually in bazel-bin/rs/path/to/canister/
-
-If you cannot determine the exact build steps, provide reasonable defaults based on the canister name mentioned.
+- Or using the build script: ./ci/container/build-ic.sh -c
+- Output is usually in bazel-bin/rs/path/to/canister/ or artifacts/canisters/
 
 Proposal text:
 `;
