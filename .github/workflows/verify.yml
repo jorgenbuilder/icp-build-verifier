@@ -1,4 +1,5 @@
 name: Verify Proposal Build
+run-name: "Verify Proposal #${{ inputs.proposal_id }}"
 
 on:
   workflow_dispatch:
