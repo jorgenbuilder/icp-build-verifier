@@ -1,4 +1,50 @@
 {
-  "lastCheckedTimestamp": 0,
-  "proposals": {}
+  "lastCheckedTimestamp": 1768190663,
+  "proposals": {
+    "139760": {
+      "status": "pending",
+      "wasmHashMatch": false,
+      "verifiedAt": "2026-01-12T04:04:23.185Z"
+    },
+    "139762": {
+      "status": "pending",
+      "wasmHashMatch": false,
+      "verifiedAt": "2026-01-12T04:04:23.185Z"
+    },
+    "139763": {
+      "status": "pending",
+      "wasmHashMatch": false,
+      "verifiedAt": "2026-01-12T04:04:23.185Z"
+    },
+    "139764": {
+      "status": "pending",
+      "wasmHashMatch": false,
+      "verifiedAt": "2026-01-12T04:04:23.185Z"
+    },
+    "139768": {
+      "status": "pending",
+      "wasmHashMatch": false,
+      "verifiedAt": "2026-01-12T04:04:23.185Z"
+    },
+    "139920": {
+      "status": "pending",
+      "wasmHashMatch": false,
+      "verifiedAt": "2026-01-12T04:04:23.185Z"
+    },
+    "139922": {
+      "status": "pending",
+      "wasmHashMatch": false,
+      "verifiedAt": "2026-01-12T04:04:23.185Z"
+    },
+    "139940": {
+      "status": "pending",
+      "wasmHashMatch": false,
+      "verifiedAt": "2026-01-12T04:04:23.185Z"
+    },
+    "139941": {
+      "status": "pending",
+      "wasmHashMatch": false,
+      "verifiedAt": "2026-01-12T04:04:23.185Z"
+    }
+  }
 }
