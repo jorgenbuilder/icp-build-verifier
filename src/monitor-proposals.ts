@@ -1,26 +1,16 @@
 import { HttpAgent, Actor } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
-import { readFileSync, writeFileSync } from 'fs';
+import { execSync } from 'child_process';
+import { writeFileSync } from 'fs';
 
 const GOVERNANCE_CANISTER_ID = 'rrkah-fqaaa-aaaaa-aaaaq-cai';
 
-interface TrackingConfig {
-  topics: number[];
-  startDate: string;
-  enabled: boolean;
-}
+// Only verify proposals after this ID (approximately Jan 11, 2026)
+// This avoids triggering verification for old proposals
+const MIN_PROPOSAL_ID = 139900n;
 
-interface VerifiedProposal {
-  status: string;
-  wasmHashMatch: boolean;
-  verifiedAt: string;
-  runId?: number;
-}
-
-interface StateData {
-  lastCheckedTimestamp: number;
-  proposals: Record<string, VerifiedProposal>;
-}
+// Only track InstallCode proposals (topic 17)
+const TRACKED_TOPICS = [17];
 
 export interface ProposalInfo {
   id: bigint;
@@ -34,18 +24,24 @@ export interface ProposalInfo {
 export function filterNewProposals(
   proposals: ProposalInfo[],
   trackedTopics: number[],
-  verifiedProposalIds: string[]
+  existingRunProposalIds: string[],
+  minProposalId: bigint
 ): ProposalInfo[] {
   return proposals.filter(p => {
     const idStr = p.id.toString();
+
+    // Must be after minimum proposal ID
+    if (p.id < minProposalId) {
+      return false;
+    }
 
     // Must be in tracked topics
     if (!trackedTopics.includes(p.topic)) {
       return false;
     }
 
-    // Must not already be tracked
-    if (verifiedProposalIds.includes(idStr)) {
+    // Must not already have a workflow run
+    if (existingRunProposalIds.includes(idStr)) {
       return false;
     }
 
@@ -121,25 +117,29 @@ async function listProposals(limit: number = 100): Promise<ProposalInfo[]> {
   }));
 }
 
-function loadConfig(): TrackingConfig {
+function getExistingWorkflowRuns(): string[] {
+  // Use GitHub CLI to get existing workflow runs for verify.yml
+  // Extract proposal IDs from run names like "Verify Proposal #139941"
   try {
-    return JSON.parse(readFileSync('config/tracking.json', 'utf-8'));
-  } catch {
-    console.error('Could not read config/tracking.json');
-    process.exit(1);
-  }
-}
+    const output = execSync(
+      'gh run list --workflow=verify.yml --limit=200 --json displayTitle',
+      { encoding: 'utf-8' }
+    );
+    const runs = JSON.parse(output);
+    const proposalIds: string[] = [];
 
-function loadState(): StateData {
-  try {
-    return JSON.parse(readFileSync('state/verified-proposals.json', 'utf-8'));
-  } catch {
-    return { lastCheckedTimestamp: 0, proposals: {} };
-  }
-}
+    for (const run of runs) {
+      const match = run.displayTitle?.match(/Verify Proposal #(\d+)/);
+      if (match) {
+        proposalIds.push(match[1]);
+      }
+    }
 
-function saveState(state: StateData) {
-  writeFileSync('state/verified-proposals.json', JSON.stringify(state, null, 2));
+    return proposalIds;
+  } catch (err) {
+    console.error('Warning: Could not fetch existing workflow runs:', err);
+    return [];
+  }
 }
 
 async function main() {
@@ -147,36 +147,33 @@ async function main() {
   console.log('=== ICP Build Verifier - Proposal Monitor ===');
   console.log('');
 
-  const config = loadConfig();
-  const state = loadState();
-
-  if (!config.enabled) {
-    console.log('Monitoring is disabled in config. Exiting.');
-    process.exit(0);
-  }
-
-  const startDateTs = new Date(config.startDate).getTime() / 1000;
-  console.log(`Tracking topics: ${config.topics.join(', ')}`);
-  console.log(`Start date: ${config.startDate}`);
-  console.log(`Last checked: ${state.lastCheckedTimestamp || 'never'}`);
+  console.log(`Tracking topics: ${TRACKED_TOPICS.join(', ')}`);
+  console.log(`Minimum proposal ID: ${MIN_PROPOSAL_ID}`);
   console.log('');
 
-  // Fetch recent proposals
+  // Fetch recent proposals from NNS
   console.log('Fetching recent proposals from NNS governance...');
   const proposals = await listProposals(100);
   console.log(`Retrieved ${proposals.length} proposals`);
 
-  // Filter proposals by topic and already-verified status
-  const verifiedIds = Object.keys(state.proposals);
-  const newProposals = filterNewProposals(proposals, config.topics, verifiedIds);
+  // Get existing workflow runs to avoid re-triggering
+  console.log('Checking existing workflow runs...');
+  const existingRuns = getExistingWorkflowRuns();
+  console.log(`Found ${existingRuns.length} existing runs`);
+
+  // Filter to new proposals that need verification
+  const newProposals = filterNewProposals(
+    proposals,
+    TRACKED_TOPICS,
+    existingRuns,
+    MIN_PROPOSAL_ID
+  );
 
   console.log(`Found ${newProposals.length} new proposals matching criteria`);
   console.log('');
 
   if (newProposals.length === 0) {
     console.log('No new proposals to verify.');
-    state.lastCheckedTimestamp = Math.floor(Date.now() / 1000);
-    saveState(state);
     return;
   }
 
@@ -188,18 +185,6 @@ async function main() {
     console.log(`  - #${p.id}: ${p.title} (topic: ${p.topic})`);
   });
   console.log('');
-
-  // Mark proposals as pending in state
-  for (const p of newProposals) {
-    state.proposals[p.id.toString()] = {
-      status: 'pending',
-      wasmHashMatch: false,
-      verifiedAt: new Date().toISOString(),
-    };
-  }
-
-  state.lastCheckedTimestamp = Math.floor(Date.now() / 1000);
-  saveState(state);
 
   // Write proposal IDs to file for workflow to consume
   writeFileSync('new-proposals.json', JSON.stringify(proposalIds, null, 2));

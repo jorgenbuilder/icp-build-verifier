@@ -10,84 +10,84 @@ describe('filterNewProposals', () => {
     title: `Proposal ${id}`,
   });
 
+  const defaultMinId = 139900n;
+
   it('filters proposals by tracked topics', () => {
     const proposals = [
-      createProposal(1, 17), // InstallCode - tracked
-      createProposal(2, 5),  // ManageNeuron - not tracked
-      createProposal(3, 17), // InstallCode - tracked
-      createProposal(4, 9),  // UpgradeRootCanister - not tracked
+      createProposal(140001, 17), // InstallCode - tracked
+      createProposal(140002, 5),  // ManageNeuron - not tracked
+      createProposal(140003, 17), // InstallCode - tracked
+      createProposal(140004, 9),  // UpgradeRootCanister - not tracked
     ];
 
-    const result = filterNewProposals(proposals, [17], []);
+    const result = filterNewProposals(proposals, [17], [], defaultMinId);
 
     expect(result).toHaveLength(2);
-    expect(result.map(p => Number(p.id))).toEqual([1, 3]);
+    expect(result.map(p => Number(p.id))).toEqual([140001, 140003]);
   });
 
-  it('excludes already-verified proposals', () => {
+  it('excludes proposals with existing workflow runs', () => {
     const proposals = [
-      createProposal(100, 17),
-      createProposal(101, 17),
-      createProposal(102, 17),
+      createProposal(140100, 17),
+      createProposal(140101, 17),
+      createProposal(140102, 17),
     ];
 
-    const verifiedIds = ['100', '102'];
-    const result = filterNewProposals(proposals, [17], verifiedIds);
+    const existingRuns = ['140100', '140102'];
+    const result = filterNewProposals(proposals, [17], existingRuns, defaultMinId);
 
     expect(result).toHaveLength(1);
-    expect(Number(result[0].id)).toBe(101);
+    expect(Number(result[0].id)).toBe(140101);
+  });
+
+  it('excludes proposals before minimum ID', () => {
+    const proposals = [
+      createProposal(139800, 17), // Before min
+      createProposal(139900, 17), // At min
+      createProposal(140000, 17), // After min
+    ];
+
+    const result = filterNewProposals(proposals, [17], [], 139900n);
+
+    expect(result).toHaveLength(2);
+    expect(result.map(p => Number(p.id))).toEqual([139900, 140000]);
   });
 
   it('handles empty proposal list', () => {
-    const result = filterNewProposals([], [17], []);
+    const result = filterNewProposals([], [17], [], defaultMinId);
     expect(result).toHaveLength(0);
   });
 
   it('handles multiple tracked topics', () => {
     const proposals = [
-      createProposal(1, 17),
-      createProposal(2, 9),
-      createProposal(3, 5),
+      createProposal(140001, 17),
+      createProposal(140002, 9),
+      createProposal(140003, 5),
     ];
 
-    const result = filterNewProposals(proposals, [17, 9], []);
+    const result = filterNewProposals(proposals, [17, 9], [], defaultMinId);
 
     expect(result).toHaveLength(2);
-    expect(result.map(p => Number(p.id))).toEqual([1, 2]);
+    expect(result.map(p => Number(p.id))).toEqual([140001, 140002]);
   });
 
   it('returns empty when no proposals match criteria', () => {
     const proposals = [
-      createProposal(1, 5),  // wrong topic
-      createProposal(2, 17), // right topic but already verified
+      createProposal(140001, 5),  // wrong topic
+      createProposal(140002, 17), // right topic but already has run
     ];
 
-    const result = filterNewProposals(proposals, [17], ['2']);
+    const result = filterNewProposals(proposals, [17], ['140002'], defaultMinId);
 
     expect(result).toHaveLength(0);
   });
 
-  it('handles bigint proposal IDs correctly', () => {
-    const proposals = [
-      { id: BigInt('139941'), topic: 17, status: 1, proposer: BigInt(1), title: 'Test' },
-    ];
-
-    // Already verified
-    const result1 = filterNewProposals(proposals, [17], ['139941']);
-    expect(result1).toHaveLength(0);
-
-    // Not verified
-    const result2 = filterNewProposals(proposals, [17], ['139940']);
-    expect(result2).toHaveLength(1);
-  });
-
   it('returns on-topic unverified proposal for verification (happy path)', () => {
-    // Simulate: new InstallCode proposal arrives, should trigger verification
     const proposals = [
       createProposal(140000, 17), // New InstallCode proposal
     ];
 
-    const result = filterNewProposals(proposals, [17], []);
+    const result = filterNewProposals(proposals, [17], [], defaultMinId);
 
     expect(result).toHaveLength(1);
     expect(Number(result[0].id)).toBe(140000);
@@ -95,25 +95,23 @@ describe('filterNewProposals', () => {
   });
 
   it('ignores off-topic proposals completely', () => {
-    // Simulate: ManageNeuron proposals arrive, should be ignored
     const proposals = [
-      createProposal(1, 5),  // ManageNeuron
-      createProposal(2, 5),  // ManageNeuron
-      createProposal(3, 9),  // UpgradeRootCanister
+      createProposal(140001, 5),  // ManageNeuron
+      createProposal(140002, 5),  // ManageNeuron
+      createProposal(140003, 9),  // UpgradeRootCanister
     ];
 
-    const result = filterNewProposals(proposals, [17], []);
+    const result = filterNewProposals(proposals, [17], [], defaultMinId);
 
     expect(result).toHaveLength(0);
   });
 
-  it('ignores already-tracked proposals even if on-topic', () => {
-    // Simulate: proposal was already verified in a previous run
+  it('ignores proposals that already have workflow runs', () => {
     const proposals = [
-      createProposal(139941, 17), // Previously verified
+      createProposal(140001, 17), // Previously run
     ];
 
-    const result = filterNewProposals(proposals, [17], ['139941']);
+    const result = filterNewProposals(proposals, [17], ['140001'], defaultMinId);
 
     expect(result).toHaveLength(0);
   });

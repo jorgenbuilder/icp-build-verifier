@@ -1,20 +1,5 @@
-import { readFileSync, appendFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, appendFileSync, existsSync } from 'fs';
 import { createHash } from 'crypto';
-
-interface VerifiedProposal {
-  status: 'pending' | 'verified' | 'failed' | 'error';
-  wasmHashMatch: boolean;
-  verifiedAt: string;
-  runId?: number;
-  actualHash?: string;
-  expectedHash?: string;
-  errorMessage?: string;
-}
-
-interface StateData {
-  lastCheckedTimestamp: number;
-  proposals: Record<string, VerifiedProposal>;
-}
 
 interface ProposalData {
   proposalId: string;
@@ -54,29 +39,6 @@ function writeGitHubSummary(content: string) {
   }
 }
 
-function loadState(): StateData {
-  const stateFile = 'state/verified-proposals.json';
-  try {
-    return JSON.parse(readFileSync(stateFile, 'utf-8'));
-  } catch {
-    return { lastCheckedTimestamp: 0, proposals: {} };
-  }
-}
-
-function updateProposalState(proposalId: string, update: Partial<VerifiedProposal>) {
-  const stateFile = 'state/verified-proposals.json';
-  const state = loadState();
-
-  state.proposals[proposalId] = {
-    ...state.proposals[proposalId],
-    ...update,
-    verifiedAt: new Date().toISOString(),
-  };
-
-  writeFileSync(stateFile, JSON.stringify(state, null, 2));
-  console.log(`Updated state for proposal ${proposalId}`);
-}
-
 async function main() {
   const wasmPath = 'output/canister.wasm';
 
@@ -109,7 +71,7 @@ async function main() {
   console.log(`Actual hash:   ${actualHash}`);
 
   // Compare
-  const { match, status } = compareHashes(actualHash, expectedHash);
+  const { match } = compareHashes(actualHash, expectedHash);
 
   // Write GitHub Actions summary
   const statusEmoji = match ? '✅' : (expectedHash ? '❌' : '⚠️');
@@ -136,36 +98,13 @@ ${!expectedHash ? '### ⚠️ Could not verify - expected hash not found in prop
 
   writeGitHubSummary(summary);
 
-  // Update state file with verification result
-  const runId = process.env.GITHUB_RUN_ID ? parseInt(process.env.GITHUB_RUN_ID, 10) : undefined;
-
+  // Exit with appropriate code
   if (match) {
-    updateProposalState(proposalData.proposalId, {
-      status: 'verified',
-      wasmHashMatch: true,
-      actualHash,
-      expectedHash: expectedHash || undefined,
-      runId,
-    });
     process.exit(0);
   } else if (expectedHash) {
-    updateProposalState(proposalData.proposalId, {
-      status: 'failed',
-      wasmHashMatch: false,
-      actualHash,
-      expectedHash,
-      runId,
-    });
     process.exit(1); // Mismatch
   } else {
     // No expected hash - warn but don't fail
-    updateProposalState(proposalData.proposalId, {
-      status: 'error',
-      wasmHashMatch: false,
-      actualHash,
-      errorMessage: 'Expected hash not found in proposal',
-      runId,
-    });
     console.warn('Warning: Could not verify because expected hash was not found in proposal');
     process.exit(0);
   }

@@ -1,8 +1,15 @@
 import { HttpAgent, Actor } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
-import { writeFileSync } from 'fs';
+import { writeFileSync, appendFileSync } from 'fs';
 
 const GOVERNANCE_CANISTER_ID = 'rrkah-fqaaa-aaaaa-aaaaq-cai';
+
+function setGitHubOutput(name: string, value: string) {
+  const outputFile = process.env.GITHUB_OUTPUT;
+  if (outputFile) {
+    appendFileSync(outputFile, `${name}=${value}\n`);
+  }
+}
 
 // IDL for get_proposal_info with action variants
 const governanceIdl = ({ IDL }: { IDL: any }) => {
@@ -118,8 +125,9 @@ async function main() {
     console.log('');
     console.log('⏭️  SKIPPED: Proposal has no action data');
     console.log('');
-    // Exit code 78 = neutral (GitHub Actions shows as skipped/gray)
-    process.exit(78);
+    setGitHubOutput('skipped', 'true');
+    setGitHubOutput('skip_reason', 'no_action_data');
+    process.exit(0);
   }
 
   if (!action.InstallCode) {
@@ -137,8 +145,9 @@ async function main() {
     console.log('  This proposal does not install code, so there is no WASM to verify.');
     console.log('  Only InstallCode proposals require build verification.');
     console.log('');
-    // Exit code 78 = neutral (GitHub Actions shows as skipped/gray)
-    process.exit(78);
+    setGitHubOutput('skipped', 'true');
+    setGitHubOutput('skip_reason', actionType);
+    process.exit(0);
   }
 
   // Extract wasm_module_hash directly from InstallCode action
