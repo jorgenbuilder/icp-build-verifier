@@ -13,32 +13,30 @@ interface ProposalData {
 
 interface BuildSteps {
   commitHash: string;
+  repoUrl: string;
   steps: string[];
   wasmOutputPath: string;
 }
 
 const EXTRACTION_PROMPT = `You are analyzing an ICP (Internet Computer Protocol) governance proposal to extract build verification instructions.
 
-The proposal describes a canister upgrade. The dfinity/ic repository has ALREADY been cloned and the correct commit has been checked out. You are already in the repository root directory.
-
-Extract ONLY the build commands (no git commands) and the output path. Return as JSON:
+The proposal describes a canister upgrade. Extract the repository URL, build commands, and output path. Return as JSON:
 
 {
+  "repoUrl": "https://github.com/org/repo",
   "steps": ["build command 1", "build command 2", ...],
-  "wasmOutputPath": "path/to/output.wasm"
+  "wasmOutputPath": "path/to/output.wasm.gz"
 }
 
 IMPORTANT:
-- Do NOT include git clone, git fetch, git checkout, or cd commands
-- The repo is already cloned and at the correct commit
-- Only include the actual build commands (e.g., bazel build, ./ci/container/build-ic.sh, etc.)
+- repoUrl: The GitHub repository URL mentioned in the proposal (e.g., https://github.com/dfinity/ic or https://github.com/dfinity/dogecoin-canister). If not explicitly mentioned, default to "https://github.com/dfinity/ic"
+- steps: ONLY the build commands, NO git commands (clone, fetch, checkout, cd)
+- wasmOutputPath: The path to the final WASM file (often ends in .wasm.gz)
 - Return ONLY valid JSON, no markdown code blocks, no explanation
 
-Common build patterns for dfinity/ic:
-- Uses Bazel for building
-- Canisters are typically built with: bazel build //rs/path/to/canister:canister_name
-- Or using the build script: ./ci/container/build-ic.sh -c
-- Output is usually in bazel-bin/rs/path/to/canister/ or artifacts/canisters/
+Common build patterns:
+- dfinity/ic: Uses ./ci/container/build-ic.sh -c, output in artifacts/canisters/
+- Other repos: May use ./scripts/docker-build, cargo build, etc.
 
 Proposal text:
 `;
@@ -64,7 +62,7 @@ async function callGemini(prompt: string): Promise<string> {
   return response.text || '';
 }
 
-function parseGeminiResponse(response: string): { steps: string[]; wasmOutputPath: string } {
+function parseGeminiResponse(response: string): { repoUrl: string; steps: string[]; wasmOutputPath: string } {
   // Try to extract JSON from the response
   let jsonStr = response.trim();
 
@@ -81,6 +79,7 @@ function parseGeminiResponse(response: string): { steps: string[]; wasmOutputPat
     }
 
     return {
+      repoUrl: parsed.repoUrl || 'https://github.com/dfinity/ic',
       steps: parsed.steps,
       wasmOutputPath: parsed.wasmOutputPath || 'output.wasm'
     };
@@ -126,16 +125,18 @@ URL: ${proposalData.url}
   const response = await callGemini(prompt);
   console.log('Gemini response received');
 
-  const { steps, wasmOutputPath } = parseGeminiResponse(response);
+  const { repoUrl, steps, wasmOutputPath } = parseGeminiResponse(response);
 
   console.log('');
   console.log('LLM EXTRACTED BUILD INSTRUCTIONS:');
   console.log('─────────────────────────────────────────────────────────────────');
+  console.log(`  Repository:      ${repoUrl}`);
   console.log(`  Number of steps: ${steps.length}`);
   console.log(`  WASM output path: ${wasmOutputPath}`);
 
   const buildSteps: BuildSteps = {
     commitHash: proposalData.commitHash,
+    repoUrl,
     steps,
     wasmOutputPath,
   };

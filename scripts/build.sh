@@ -16,22 +16,24 @@ fi
 
 # Parse JSON files using node
 COMMIT_HASH=$(node -e "console.log(JSON.parse(require('fs').readFileSync('build-steps.json')).commitHash)")
+REPO_URL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('build-steps.json')).repoUrl)")
 WASM_OUTPUT_PATH=$(node -e "console.log(JSON.parse(require('fs').readFileSync('build-steps.json')).wasmOutputPath)")
 
+echo "Repository: $REPO_URL"
 echo "Commit hash: $COMMIT_HASH"
 echo "Expected WASM output: $WASM_OUTPUT_PATH"
 
-# Clone dfinity/ic repository
+# Clone repository
 echo ""
-echo "=== Cloning dfinity/ic repository ==="
-if [ -d "ic" ]; then
-    echo "Removing existing ic directory..."
-    rm -rf ic
+echo "=== Cloning repository ==="
+if [ -d "repo" ]; then
+    echo "Removing existing repo directory..."
+    rm -rf repo
 fi
 
 # Shallow clone, then fetch the specific commit
-git clone --depth 1 https://github.com/dfinity/ic.git ic
-cd ic
+git clone --depth 1 "$REPO_URL" repo
+cd repo
 
 echo "Fetching commit $COMMIT_HASH..."
 git fetch --depth 1 origin "$COMMIT_HASH"
