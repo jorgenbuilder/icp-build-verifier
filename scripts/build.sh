@@ -40,17 +40,40 @@ git checkout "$COMMIT_HASH"
 echo ""
 echo "=== Running build steps ==="
 
-# Read and execute build steps
+# Read build steps
 STEPS=$(node -e "JSON.parse(require('fs').readFileSync('../build-steps.json')).steps.forEach(s => console.log(s))")
 
-# Execute each step
-while IFS= read -r step; do
-    if [ -n "$step" ]; then
-        echo ""
-        echo ">>> Executing: $step"
-        eval "$step"
-    fi
-done <<< "$STEPS"
+# If running as root, create a non-root user and run bazel as that user
+# (rules_python requires non-root for hermetic Python)
+if [ "$(id -u)" = "0" ]; then
+    echo "Running as root, creating build user for bazel..."
+    useradd -m -s /bin/bash builder 2>/dev/null || true
+
+    # Give builder ownership of the ic directory
+    chown -R builder:builder .
+
+    # Create bazel cache directory for builder
+    mkdir -p /home/builder/.cache
+    chown -R builder:builder /home/builder
+
+    # Execute each step as builder user
+    while IFS= read -r step; do
+        if [ -n "$step" ]; then
+            echo ""
+            echo ">>> Executing (as builder): $step"
+            su - builder -c "cd $(pwd) && $step"
+        fi
+    done <<< "$STEPS"
+else
+    # Execute each step normally
+    while IFS= read -r step; do
+        if [ -n "$step" ]; then
+            echo ""
+            echo ">>> Executing: $step"
+            eval "$step"
+        fi
+    done <<< "$STEPS"
+fi
 
 echo ""
 echo "=== Build complete ==="
