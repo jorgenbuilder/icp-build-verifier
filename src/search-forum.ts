@@ -45,7 +45,7 @@ async function fetchForumCookies(
   }
 
   const data = await response.json();
-  return data.cookies; // Cookie header string
+  return data.cookies; // Raw cookie text - will be saved to file for Claude Code
 }
 
 async function searchForum(
@@ -223,13 +223,17 @@ async function main() {
   try {
     // Fetch cookies from portal
     console.log('Fetching forum cookies from portal...');
-    const cookies = await fetchForumCookies(portalUrl, commentarySecret);
+    const cookieText = await fetchForumCookies(portalUrl, commentarySecret);
     console.log('✓ Cookies retrieved');
+
+    // Save to file for Claude Code to use
+    writeFileSync('forum-cookies.txt', cookieText);
+    console.log('✓ Cookies saved to forum-cookies.txt for Claude Code');
     console.log('');
 
     // Search forum
     console.log('Searching forum...');
-    const result = await findForumThread(proposalId, cookies);
+    const result = await findForumThread(proposalId, cookieText);
 
     if (result.found) {
       console.log('✓ Forum thread found!');

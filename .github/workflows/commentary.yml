@@ -27,6 +27,25 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Fetch forum cookies for Claude Code
+        env:
+          COMMENTARY_SECRET: ${{ secrets.COMMENTARY_SECRET }}
+          PORTAL_URL: ${{ secrets.PORTAL_URL }}
+        run: |
+          echo "Fetching forum cookies for Claude Code..."
+          curl -H "Authorization: Bearer $COMMENTARY_SECRET" \
+               "$PORTAL_URL/api/forum-cookies" \
+               | jq -r '.cookies' > forum-cookies.txt || {
+            echo "⚠️ No cookies configured, Claude Code will skip forum search"
+            echo "" > forum-cookies.txt
+          }
+
+          if [ -s forum-cookies.txt ]; then
+            echo "✓ Cookies saved to forum-cookies.txt"
+          else
+            echo "⚠️ No cookies available"
+          fi
+
       - name: Generate commentary with Claude Code
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -53,8 +72,28 @@ jobs:
             Key steps:
             1. Run `npx tsx src/fetch-proposal.ts ${{ inputs.proposal_id }}` to fetch proposal data
             2. Clone the IC repository if needed to analyze the code diff
-            3. Research context from GitHub PRs and (if necessary) the DFINITY forum
-            4. Generate structured commentary
+            3. Research context from GitHub PRs
+            4. Search DFINITY forum for discussion thread (see below)
+            5. Generate structured commentary
+
+            ## Forum Search Instructions
+
+            A file `forum-cookies.txt` contains authentication cookies for forum.dfinity.org.
+            If this file is non-empty, you should:
+
+            1. Read the cookie file - it may contain Netscape format or raw cookie text
+            2. Use these cookies when making requests to forum.dfinity.org
+            3. Search for the proposal discussion using Discourse JSON API:
+               - Search: GET https://forum.dfinity.org/search.json?q={proposal_id}
+               - Thread: GET https://forum.dfinity.org/t/{slug}/{id}.json
+            4. Filter results to "NNS Proposal Discussions" category (category_id: 76)
+            5. Verify the proposal ID appears in the first post of the thread
+            6. If found, post the URL to the portal using:
+               POST ${{ secrets.PORTAL_URL }}/api/forum-links
+               Headers: Authorization: Bearer ${{ secrets.FORUM_LINK_SECRET }}
+               Body: {"proposalId": "{id}", "forumUrl": "{url}", "threadTitle": "{title}"}
+
+            If forum-cookies.txt is empty or search fails, skip forum search (this is non-fatal).
 
             ## Output Requirements
 
@@ -65,25 +104,13 @@ jobs:
           claude_args: --dangerously-skip-permissions --max-turns 50
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Search forum for discussion thread
-        if: success()
-        env:
-          COMMENTARY_SECRET: ${{ secrets.COMMENTARY_SECRET }}
-          FORUM_LINK_SECRET: ${{ secrets.FORUM_LINK_SECRET }}
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
-        run: |
-          echo "Searching DFINITY forum for proposal discussion..."
-          npx tsx src/search-forum.ts ${{ inputs.proposal_id }} || {
-            echo "⚠️ Forum search failed (non-fatal)"
-            exit 0
-          }
+          FORUM_LINK_SECRET: ${{ secrets.FORUM_LINK_SECRET }}
 
       - name: Format commentary output
         if: always()
         run: |
           OUTPUT_FILE="/home/runner/work/_temp/claude-execution-output.json"
-          FORUM_RESULT="forum-result.json"
 
           # Overwrite the summary completely (not append)
           if [ -f "$OUTPUT_FILE" ]; then
@@ -92,24 +119,6 @@ jobs:
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "Check the workflow logs for Claude's output." >> $GITHUB_STEP_SUMMARY
             }
-
-            # Append forum search result if available
-            if [ -f "$FORUM_RESULT" ]; then
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "---" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "## Forum Search Result" >> $GITHUB_STEP_SUMMARY
-
-              FOUND=$(jq -r '.found' "$FORUM_RESULT")
-              if [ "$FOUND" = "true" ]; then
-                URL=$(jq -r '.url' "$FORUM_RESULT")
-                TITLE=$(jq -r '.title' "$FORUM_RESULT")
-                echo "✓ Found discussion: [$TITLE]($URL)" >> $GITHUB_STEP_SUMMARY
-              else
-                ERROR=$(jq -r '.error // "No results"' "$FORUM_RESULT")
-                echo "No forum thread found: $ERROR" >> $GITHUB_STEP_SUMMARY
-              fi
-            fi
           else
             echo "## ❌ Error" > $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
