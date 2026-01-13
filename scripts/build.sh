@@ -39,6 +39,10 @@ echo "Fetching commit $COMMIT_HASH..."
 git fetch --depth 1 origin "$COMMIT_HASH"
 git checkout "$COMMIT_HASH"
 
+# Patch any scripts that force DOCKER_BUILDKIT=1
+echo "Patching docker-build scripts to disable BuildKit..."
+find . -name "docker-build" -type f -exec sed -i 's/export DOCKER_BUILDKIT=1/export DOCKER_BUILDKIT=0/g' {} \;
+
 echo ""
 echo "=== Running build steps ==="
 
