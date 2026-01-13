@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/dfinity/ic-build:latest
+      options: -v /var/run/docker.sock:/var/run/docker.sock
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -25,6 +26,15 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Setup Docker
+        run: |
+          # Install Docker CLI if not present
+          if ! command -v docker &> /dev/null; then
+            apt-get update && apt-get install -y docker.io
+          fi
+          # Disable BuildKit to avoid buildx requirement
+          echo "DOCKER_BUILDKIT=0" >> $GITHUB_ENV
 
       - name: Fetch proposal from NNS
         id: fetch
@@ -42,6 +52,8 @@ jobs:
       - name: Build WASM
         if: steps.fetch.outputs.skipped != 'true'
         run: bash scripts/build.sh
+        env:
+          DOCKER_BUILDKIT: 0
 
       - name: Compare hashes
         if: steps.fetch.outputs.skipped != 'true'
