@@ -29,7 +29,7 @@ jobs:
 
       - name: Generate commentary with Claude Code
         id: claude
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-base-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
@@ -68,12 +68,9 @@ jobs:
 
       - name: Format commentary output
         run: |
-          OUTPUT_FILE="/home/runner/work/_temp/claude-execution-output.json"
+          OUTPUT_FILE="${{ steps.claude.outputs.execution_file }}"
 
-          # Clear the default verbose output from the action
-          echo "" > $GITHUB_STEP_SUMMARY
-
-          if [ -f "$OUTPUT_FILE" ]; then
+          if [ -n "$OUTPUT_FILE" ] && [ -f "$OUTPUT_FILE" ]; then
             npx tsx src/format-commentary.ts "$OUTPUT_FILE" >> $GITHUB_STEP_SUMMARY 2>&1
 
             # If formatting failed, show a message
@@ -85,5 +82,7 @@ jobs:
           else
             echo "## ❌ Error" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Claude output file not found at \`$OUTPUT_FILE\`" >> $GITHUB_STEP_SUMMARY
+            echo "Claude execution file not found." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Conclusion: ${{ steps.claude.outputs.conclusion }}" >> $GITHUB_STEP_SUMMARY
           fi
