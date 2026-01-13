@@ -39,10 +39,13 @@ jobs:
           PROPOSAL_IDS=$(cat new-proposals.json)
           echo "New proposals to verify: $PROPOSAL_IDS"
 
-          # Trigger verification workflow for each proposal
+          # Trigger verification and commentary workflows for each proposal
           for id in $(echo "$PROPOSAL_IDS" | jq -r '.[]'); do
             echo "Triggering verification for proposal $id"
             gh workflow run verify.yml -f proposal_id="$id"
+            sleep 2
+            echo "Triggering commentary for proposal $id"
+            gh workflow run commentary.yml -f proposal_id="$id"
             # Small delay to avoid rate limiting
             sleep 2
           done
