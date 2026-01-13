@@ -62,6 +62,13 @@ if [ "$(id -u)" = "0" ]; then
     mkdir -p /home/builder/.cache
     chown -R builder:builder /home/builder
 
+    # Grant builder access to Docker socket if it exists
+    if [ -S /var/run/docker.sock ]; then
+        echo "Granting builder user access to Docker socket..."
+        chown root:builder /var/run/docker.sock
+        chmod 660 /var/run/docker.sock
+    fi
+
     # Execute each step as builder user
     while IFS= read -r step; do
         if [ -n "$step" ]; then
