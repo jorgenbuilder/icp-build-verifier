@@ -101,26 +101,37 @@ jobs:
             - ONLY use it with curl's --cookie flag: `curl --cookie "$FORUM_COOKIES"`
             - If you encounter errors, DO NOT include cookie values in error messages
 
-            To search the forum:
+            To search the forum as a research tool:
 
-            1. Check if FORUM_COOKIES is set and non-empty (use `[ -n "$FORUM_COOKIES" ]`)
-            2. Use curl to get raw JSON (DO NOT use jq - you will parse the JSON yourself):
+            1. Check if FORUM_COOKIES is set: `[ -n "$FORUM_COOKIES" ]`
+            2. Use curl to fetch JSON (parse manually, DO NOT use jq):
                ```bash
                curl --cookie "$FORUM_COOKIES" -H "Accept: application/json" \
-                    "https://forum.dfinity.org/search.json?q=139768" 2>/dev/null
+                    "https://forum.dfinity.org/search.json?q={proposal_id}" 2>/dev/null
                ```
-            3. Parse the JSON response yourself to find relevant threads
-            4. Search for the proposal discussion using Discourse JSON API:
+
+            3. **Targeted search** - Find specific proposal discussion:
                - Search: GET https://forum.dfinity.org/search.json?q={proposal_id}
                - Thread: GET https://forum.dfinity.org/t/{slug}/{id}.json
-            5. Filter results to "NNS Proposal Discussions" category (category_id: 76)
-            6. Verify the proposal ID appears in the first post of the thread
-            7. If found, post the URL to the portal using:
+               - Filter to NNS category (category_id: 76)
+               - Verify proposal ID in first post
+
+            4. **Contextual browsing** - Gather broader governance context:
+               - NNS category: GET https://forum.dfinity.org/c/governance/nns-proposal-discussions/76.json
+               - Look for related proposals, themes, and community discussions
+               - This often provides valuable "why now" context for reviewers
+
+            5. **Extract and cite context**:
+               - Add all forum sources (threads and category browsing) to sources array
+               - Use source type "forum_post"
+               - Include context about related proposals or governance themes
+
+            6. **Post discovered proposal thread** (if found):
                POST ${{ secrets.PORTAL_URL }}/api/forum-links
                Headers: Authorization: Bearer ${{ secrets.FORUM_LINK_SECRET }}
                Body: {"proposalId": "{id}", "forumUrl": "{url}", "threadTitle": "{title}"}
 
-            If FORUM_COOKIES is empty or search fails, skip forum search (this is non-fatal).
+            If FORUM_COOKIES is empty or search fails, skip forum search (non-fatal).
 
             ## Output Requirements
 

@@ -70,8 +70,21 @@ If no diff command is provided, or it fails:
 
 **Only search the forum if needed**:
 - If the proposal body is unclear about *why* this change is happening
-- If the PR discussion doesn't explain the motivation
+- If the PR discussion doesn't explain the motivation or context
 - If there are unusual or concerning changes that need explanation
+- If understanding "why now" requires community or governance context
+
+**When forum research IS triggered, use it as a research tool**:
+1. Search for specific proposal discussion thread
+2. Browse the NNS Proposal Discussions category for broader context:
+   - Related proposals or initiatives
+   - Recent governance themes
+   - Community concerns or discussions
+3. Extract and cite contextual information that helps reviewers understand:
+   - Why this change is happening now
+   - How it relates to other proposals
+   - Community input or concerns
+   - Historical context or patterns
 
 Do NOT search the forum if:
 - The change is self-evident from the code and proposal

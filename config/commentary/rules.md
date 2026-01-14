@@ -20,7 +20,10 @@ Proposers and reviewers can modify these rules to customize the analysis behavio
 
 - **DO** search GitHub PR discussions for context on why changes were made
 - **DO** search the DFINITY forum if the proposal body and PR discussion don't explain
-  why a change is necessary *now*
+  why a change is necessary *now*, using it as a research tool for additional context
+- **DO** browse the NNS Proposal Discussions category (`/c/governance/.../76.json`) when
+  forum searching to identify themes, related proposals, or community concerns
+- **DO** cite all forum sources in the commentary to help reviewers understand context
 - **DO NOT** search the forum if the change is self-evident from:
   - The proposal body
   - The code diff itself
@@ -33,6 +36,82 @@ Proposers and reviewers can modify these rules to customize the analysis behavio
 3. **GitHub PR discussion** - Code review context and rationale
 4. **DFINITY Forum** - Community discussion and announcements
 5. **Documentation** - Official DFINITY/IC documentation
+
+## Forum API Reference
+
+The DFINITY Forum (Discourse) provides JSON endpoints for programmatic access. Use these as research tools to gather additional context for proposals.
+
+### Available Endpoints
+
+**Searching:**
+- Search all topics: `GET https://forum.dfinity.org/search.json?q={query}&page={n}`
+  - Query can be proposal ID, keywords, or technical terms
+  - Supports pagination with `page` parameter (1-indexed)
+  - Example: `search.json?q=139942` finds discussions mentioning proposal 139942
+
+**Accessing Threads:**
+- Get thread details: `GET https://forum.dfinity.org/t/{slug}/{id}.json`
+  - Returns complete thread with all posts
+  - Verify proposal ID in first post for confirmation
+  - Example: `/t/proposal-139942-to-upgrade-ii/62423.json`
+
+**Browsing by Category:**
+- NNS Proposal Discussions: `GET https://forum.dfinity.org/c/governance/nns-proposal-discussions/76.json`
+  - Category ID 76 is dedicated to NNS governance proposals
+  - Returns recent topics in chronological order
+  - **Often provides valuable context** about current governance themes and related proposals
+
+**Latest Activity:**
+- Recent topics: `GET https://forum.dfinity.org/latest.json`
+  - Cross-category view of recent forum activity
+  - Useful for understanding current community discussions
+
+**Category Directory:**
+- All categories: `GET https://forum.dfinity.org/categories.json`
+  - Lists all forum categories
+  - Generally not needed for proposal analysis
+
+### Authentication
+
+Forum cookies are provided via the `FORUM_COOKIES` environment variable.
+
+**Usage with curl:**
+```bash
+curl --cookie "$FORUM_COOKIES" -H "Accept: application/json" \
+     "https://forum.dfinity.org/search.json?q=139768"
+```
+
+**Security**: Never echo or print `FORUM_COOKIES` in logs or output.
+
+### Strategic Forum Research
+
+When forum research is triggered (per Research Guidelines), use this approach to maximize context:
+
+**1. Start with Targeted Search**
+- Search for the specific proposal ID
+- Filter results to NNS category (category_id: 76)
+- Verify proposal ID appears in the thread's first post
+- Extract: proposer's explanation, community questions, concerns raised
+
+**2. Browse for Broader Context**
+- Check `/c/governance/nns-proposal-discussions/76.json` for related discussions
+- Look for patterns:
+  - Similar upgrades to the same canister
+  - Related proposals in the same time period
+  - Recurring issues or initiatives
+  - Community themes (e.g., security focus, feature rollouts)
+
+**3. Extract Contextual Value**
+- **Why now?** - Timing, urgency, dependencies on other proposals
+- **Related work** - Is this part of a broader initiative?
+- **Community input** - Has the community raised concerns or provided feedback?
+- **Historical context** - Previous similar proposals, patterns over time
+
+**4. Cite All Context**
+- Add forum discussions to the `sources` array
+- Use source type `forum_post` for threads and category discussions
+- Include both specific proposal threads and contextual category browsing
+- Helps human reviewers understand where information came from
 
 ## Analysis Requirements
 
