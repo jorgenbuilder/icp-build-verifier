@@ -33,15 +33,15 @@ jobs:
           PORTAL_URL: ${{ secrets.PORTAL_URL }}
         run: |
           echo "Fetching forum cookies for Claude Code..."
-          curl -H "Authorization: Bearer $COMMENTARY_SECRET" \
-               "$PORTAL_URL/api/forum-cookies" \
-               | jq -r '.cookies' > forum-cookies.txt || {
+          curl -s -H "Authorization: Bearer $COMMENTARY_SECRET" \
+               "$PORTAL_URL/api/forum-cookies" 2>/dev/null \
+               | jq -r '.cookies' > forum-cookies.txt 2>/dev/null || {
             echo "⚠️ No cookies configured, Claude Code will skip forum search"
             echo "" > forum-cookies.txt
           }
 
           if [ -s forum-cookies.txt ]; then
-            echo "✓ Cookies saved to forum-cookies.txt"
+            echo "✓ Cookies saved to forum-cookies.txt ($(wc -c < forum-cookies.txt) bytes)"
           else
             echo "⚠️ No cookies available"
           fi
