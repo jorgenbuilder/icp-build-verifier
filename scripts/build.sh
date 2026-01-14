@@ -65,8 +65,13 @@ if [ "$(id -u)" = "0" ]; then
     # Grant builder access to Docker socket if it exists
     if [ -S /var/run/docker.sock ]; then
         echo "Granting builder user access to Docker socket..."
-        chown root:builder /var/run/docker.sock
-        chmod 660 /var/run/docker.sock
+        # Get the GID of the Docker socket
+        DOCKER_SOCKET_GID=$(stat -c '%g' /var/run/docker.sock)
+        echo "Docker socket GID: $DOCKER_SOCKET_GID"
+
+        # Add builder user to the Docker socket's group
+        groupadd -g "$DOCKER_SOCKET_GID" -f docker 2>/dev/null || true
+        usermod -aG "$DOCKER_SOCKET_GID" builder 2>/dev/null || true
     fi
 
     # Execute each step as builder user
