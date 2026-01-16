@@ -72,7 +72,7 @@ jobs:
         if: steps.fetch.outputs.skipped != 'true'
         run: |
           # Download and install didc for candid encoding
-          DIDC_VERSION="2024-04-05"
+          DIDC_VERSION="2025-12-18"
           curl -fsSL "https://github.com/dfinity/candid/releases/download/${DIDC_VERSION}/didc-linux64" -o /usr/local/bin/didc
           chmod +x /usr/local/bin/didc
           didc --version
