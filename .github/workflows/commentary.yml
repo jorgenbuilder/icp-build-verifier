@@ -126,10 +126,8 @@ jobs:
                - Use source type "forum_post"
                - Include context about related proposals or governance themes
 
-            6. **Post discovered proposal thread** (if found):
-               POST ${{ secrets.PORTAL_URL }}/api/forum-links
-               Headers: Authorization: Bearer ${{ secrets.FORUM_LINK_SECRET }}
-               Body: {"proposalId": "{id}", "forumUrl": "{url}", "threadTitle": "{title}"}
+            Note: Forum thread discovery and linking is handled separately by the portal.
+            You do NOT need to post discovered threads - just use them for context in your analysis.
 
             If FORUM_COOKIES is empty or search fails, skip forum search (non-fatal).
 
@@ -142,8 +140,6 @@ jobs:
           claude_args: --dangerously-skip-permissions --max-turns 50
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PORTAL_URL: ${{ secrets.PORTAL_URL }}
-          FORUM_LINK_SECRET: ${{ secrets.FORUM_LINK_SECRET }}
           FORUM_COOKIES: ${{ env.FORUM_COOKIES }}
 
       - name: Format commentary output
