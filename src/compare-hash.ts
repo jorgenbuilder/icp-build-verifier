@@ -1,5 +1,6 @@
 import { readFileSync, appendFileSync, existsSync } from 'fs';
 import { createHash } from 'crypto';
+import { execSync } from 'child_process';
 
 interface ProposalData {
   proposalId: string;
@@ -8,6 +9,15 @@ interface ProposalData {
   url: string;
   commitHash: string | null;
   expectedWasmHash: string | null;
+  expectedArgHash: string | null;
+}
+
+interface BuildSteps {
+  commitHash: string;
+  repoUrl: string;
+  steps: string[];
+  wasmOutputPath: string;
+  upgradeArgs: string | null;
 }
 
 export function computeSha256(filePath: string): string {
@@ -39,6 +49,23 @@ function writeGitHubSummary(content: string) {
   }
 }
 
+export function computeArgHash(upgradeArgs: string): string | null {
+  try {
+    // Use didc to encode the candid arguments and compute hash
+    // didc encode '(record {allowlist = null})' | xxd -r -p | sha256sum
+    const encoded = execSync(`didc encode '${upgradeArgs}'`, { encoding: 'utf-8' }).trim();
+
+    // Convert hex string to bytes and compute sha256
+    const bytes = Buffer.from(encoded, 'hex');
+    const hash = createHash('sha256');
+    hash.update(bytes);
+    return hash.digest('hex');
+  } catch (err) {
+    console.error('Failed to compute arg hash with didc:', err);
+    return null;
+  }
+}
+
 async function main() {
   const wasmPath = 'output/canister.wasm';
 
@@ -49,6 +76,14 @@ async function main() {
   } catch {
     console.error('Could not read proposal.json');
     process.exit(1);
+  }
+
+  // Read build steps for upgrade args
+  let buildSteps: BuildSteps | null = null;
+  try {
+    buildSteps = JSON.parse(readFileSync('build-steps.json', 'utf-8'));
+  } catch {
+    console.warn('Could not read build-steps.json (upgrade args verification will be skipped)');
   }
 
   // Check WASM file exists
@@ -62,51 +97,119 @@ async function main() {
     process.exit(1);
   }
 
-  // Compute hash of built WASM
+  // ===== WASM HASH VERIFICATION =====
+  console.log('');
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('  WASM HASH VERIFICATION');
+  console.log('═══════════════════════════════════════════════════════════════');
+  console.log('');
+
   console.log('Computing SHA256 of built WASM...');
-  const actualHash = computeSha256(wasmPath);
-  const expectedHash = proposalData.expectedWasmHash;
+  const actualWasmHash = computeSha256(wasmPath);
+  const expectedWasmHash = proposalData.expectedWasmHash;
 
-  console.log(`Expected hash: ${expectedHash || 'Not found in proposal'}`);
-  console.log(`Actual hash:   ${actualHash}`);
+  console.log(`Expected WASM hash: ${expectedWasmHash || 'Not found in proposal'}`);
+  console.log(`Actual WASM hash:   ${actualWasmHash}`);
 
-  // Compare
-  const { match } = compareHashes(actualHash, expectedHash);
+  const { match: wasmMatch } = compareHashes(actualWasmHash, expectedWasmHash);
+
+  // ===== ARG HASH VERIFICATION =====
+  let argMatch = true; // Default to true if no arg hash to verify
+  let actualArgHash: string | null = null;
+  const expectedArgHash = proposalData.expectedArgHash;
+  const upgradeArgs = buildSteps?.upgradeArgs;
+
+  if (expectedArgHash) {
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('  UPGRADE ARGUMENTS HASH VERIFICATION');
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('');
+
+    if (upgradeArgs) {
+      console.log(`Upgrade args from proposal: ${upgradeArgs}`);
+      console.log('Computing SHA256 of encoded upgrade arguments...');
+      actualArgHash = computeArgHash(upgradeArgs);
+
+      if (actualArgHash) {
+        console.log(`Expected arg hash: ${expectedArgHash}`);
+        console.log(`Actual arg hash:   ${actualArgHash}`);
+        argMatch = actualArgHash.toLowerCase() === expectedArgHash.toLowerCase();
+      } else {
+        console.error('Failed to compute arg hash');
+        argMatch = false;
+      }
+    } else {
+      console.warn('Warning: Proposal has arg_hash but no upgrade args were extracted from summary');
+      console.log(`Expected arg hash: ${expectedArgHash}`);
+      console.log(`Actual arg hash:   (could not compute - no upgrade args found)`);
+      argMatch = false;
+    }
+  }
+
+  // ===== FINAL RESULT =====
+  const overallMatch = wasmMatch && argMatch;
+  const hasArgVerification = !!expectedArgHash;
 
   // Write GitHub Actions summary
-  const statusEmoji = match ? '✅' : (expectedHash ? '❌' : '⚠️');
-  const statusText = match ? 'MATCH' : (expectedHash ? 'MISMATCH' : 'CANNOT VERIFY');
+  const wasmStatusEmoji = wasmMatch ? '✅' : (expectedWasmHash ? '❌' : '⚠️');
+  const wasmStatusText = wasmMatch ? 'MATCH' : (expectedWasmHash ? 'MISMATCH' : 'CANNOT VERIFY');
 
-  const summary = `## Build Verification Result: ${statusEmoji} ${statusText}
+  let argStatusEmoji = '';
+  let argStatusText = '';
+  if (hasArgVerification) {
+    argStatusEmoji = argMatch ? '✅' : '❌';
+    argStatusText = argMatch ? 'MATCH' : 'MISMATCH';
+  }
+
+  const overallStatusEmoji = overallMatch ? '✅' : '❌';
+  const overallStatusText = overallMatch ? 'VERIFIED' : 'FAILED';
+
+  let summary = `## Build Verification Result: ${overallStatusEmoji} ${overallStatusText}
 
 **Proposal ID:** ${proposalData.proposalId}
 **Title:** ${proposalData.title}
 
+### WASM Hash: ${wasmStatusEmoji} ${wasmStatusText}
+
 | Hash Type | Value |
 |-----------|-------|
-| Expected | \`${expectedHash || 'Not found in proposal'}\` |
-| Actual | \`${actualHash}\` |
+| Expected | \`${expectedWasmHash || 'Not found in proposal'}\` |
+| Actual | \`${actualWasmHash}\` |
+`;
 
-${match ? '### ✅ Build verification successful!' : ''}
-${!match && expectedHash ? '### ❌ Hash mismatch - build does not match expected WASM' : ''}
-${!expectedHash ? '### ⚠️ Could not verify - expected hash not found in proposal' : ''}
+  if (hasArgVerification) {
+    summary += `
+### Upgrade Args Hash: ${argStatusEmoji} ${argStatusText}
+
+| Hash Type | Value |
+|-----------|-------|
+| Expected | \`${expectedArgHash}\` |
+| Actual | \`${actualArgHash || 'Could not compute'}\` |
+| Args | \`${upgradeArgs || 'Not found in proposal'}\` |
+`;
+  }
+
+  summary += `
+${overallMatch ? '### ✅ All verifications passed!' : '### ❌ Verification failed - see details above'}
 `;
 
   console.log('\n' + '='.repeat(60));
-  console.log(match ? '✅ VERIFICATION PASSED' : (expectedHash ? '❌ VERIFICATION FAILED' : '⚠️ CANNOT VERIFY'));
+  console.log(`WASM HASH: ${wasmMatch ? '✅ VERIFIED' : (expectedWasmHash ? '❌ FAILED' : '⚠️ CANNOT VERIFY')}`);
+  if (hasArgVerification) {
+    console.log(`ARG HASH:  ${argMatch ? '✅ VERIFIED' : '❌ FAILED'}`);
+  }
+  console.log('─'.repeat(60));
+  console.log(`OVERALL:   ${overallMatch ? '✅ VERIFICATION PASSED' : '❌ VERIFICATION FAILED'}`);
   console.log('='.repeat(60));
 
   writeGitHubSummary(summary);
 
   // Exit with appropriate code
-  if (match) {
+  if (overallMatch) {
     process.exit(0);
-  } else if (expectedHash) {
-    process.exit(1); // Mismatch
   } else {
-    // No expected hash - warn but don't fail
-    console.warn('Warning: Could not verify because expected hash was not found in proposal');
-    process.exit(0);
+    process.exit(1);
   }
 }
 

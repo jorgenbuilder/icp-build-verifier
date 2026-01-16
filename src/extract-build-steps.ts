@@ -8,6 +8,7 @@ interface ProposalData {
   url: string;
   commitHash: string | null;
   expectedWasmHash: string | null;
+  expectedArgHash: string | null;
   canisterId: string | null;
 }
 
@@ -16,22 +17,25 @@ interface BuildSteps {
   repoUrl: string;
   steps: string[];
   wasmOutputPath: string;
+  upgradeArgs: string | null;
 }
 
 const EXTRACTION_PROMPT = `You are analyzing an ICP (Internet Computer Protocol) governance proposal to extract build verification instructions.
 
-The proposal describes a canister upgrade. Extract the repository URL, build commands, and output path. Return as JSON:
+The proposal describes a canister upgrade. Extract the repository URL, build commands, output path, and upgrade arguments. Return as JSON:
 
 {
   "repoUrl": "https://github.com/org/repo",
   "steps": ["build command 1", "build command 2", ...],
-  "wasmOutputPath": "path/to/output.wasm.gz"
+  "wasmOutputPath": "path/to/output.wasm.gz",
+  "upgradeArgs": "(record {field = value})" or null
 }
 
 IMPORTANT:
 - repoUrl: The GitHub repository URL mentioned in the proposal (e.g., https://github.com/dfinity/ic or https://github.com/dfinity/dogecoin-canister). If not explicitly mentioned, default to "https://github.com/dfinity/ic"
 - steps: ONLY the build commands, NO git commands (clone, fetch, checkout, cd)
 - wasmOutputPath: The path to the final WASM file (often ends in .wasm.gz)
+- upgradeArgs: The Candid-encoded upgrade arguments if mentioned in the proposal (look for "Upgrade Arguments" section with a candid expression like "(record {allowlist = null})"). Set to null if no upgrade arguments are specified.
 - Return ONLY valid JSON, no markdown code blocks, no explanation
 
 Common build patterns:
@@ -62,7 +66,7 @@ async function callGemini(prompt: string): Promise<string> {
   return response.text || '';
 }
 
-function parseGeminiResponse(response: string): { repoUrl: string; steps: string[]; wasmOutputPath: string } {
+function parseGeminiResponse(response: string): { repoUrl: string; steps: string[]; wasmOutputPath: string; upgradeArgs: string | null } {
   // Try to extract JSON from the response
   let jsonStr = response.trim();
 
@@ -81,7 +85,8 @@ function parseGeminiResponse(response: string): { repoUrl: string; steps: string
     return {
       repoUrl: parsed.repoUrl || 'https://github.com/dfinity/ic',
       steps: parsed.steps,
-      wasmOutputPath: parsed.wasmOutputPath || 'output.wasm'
+      wasmOutputPath: parsed.wasmOutputPath || 'output.wasm',
+      upgradeArgs: parsed.upgradeArgs || null
     };
   } catch (err) {
     console.error('Failed to parse Gemini response:', response);
@@ -125,20 +130,22 @@ URL: ${proposalData.url}
   const response = await callGemini(prompt);
   console.log('Gemini response received');
 
-  const { repoUrl, steps, wasmOutputPath } = parseGeminiResponse(response);
+  const { repoUrl, steps, wasmOutputPath, upgradeArgs } = parseGeminiResponse(response);
 
   console.log('');
   console.log('LLM EXTRACTED BUILD INSTRUCTIONS:');
   console.log('─────────────────────────────────────────────────────────────────');
-  console.log(`  Repository:      ${repoUrl}`);
-  console.log(`  Number of steps: ${steps.length}`);
+  console.log(`  Repository:       ${repoUrl}`);
+  console.log(`  Number of steps:  ${steps.length}`);
   console.log(`  WASM output path: ${wasmOutputPath}`);
+  console.log(`  Upgrade args:     ${upgradeArgs || '(none)'}`);
 
   const buildSteps: BuildSteps = {
     commitHash: proposalData.commitHash,
     repoUrl,
     steps,
     wasmOutputPath,
+    upgradeArgs,
   };
 
   writeFileSync('build-steps.json', JSON.stringify(buildSteps, null, 2));

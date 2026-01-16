@@ -56,6 +56,7 @@ interface ProposalData {
   url: string;
   commitHash: string | null;
   expectedWasmHash: string | null;
+  expectedArgHash: string | null;
   canisterId: string | null;
 }
 
@@ -150,8 +151,9 @@ async function main() {
     process.exit(0);
   }
 
-  // Extract wasm_module_hash directly from InstallCode action
+  // Extract wasm_module_hash and arg_hash directly from InstallCode action
   let expectedWasmHash: string | null = null;
+  let expectedArgHash: string | null = null;
   let canisterId: string | null = null;
 
   const installCode = action.InstallCode;
@@ -159,6 +161,11 @@ async function main() {
   // Extract wasm_module_hash from bytes
   if (installCode.wasm_module_hash?.[0]) {
     expectedWasmHash = bytesToHex(installCode.wasm_module_hash[0]);
+  }
+
+  // Extract arg_hash from bytes (upgrade arguments hash)
+  if (installCode.arg_hash?.[0]) {
+    expectedArgHash = bytesToHex(installCode.arg_hash[0]);
   }
 
   // Extract canister_id
@@ -177,6 +184,7 @@ async function main() {
     url,
     commitHash,
     expectedWasmHash,
+    expectedArgHash,
     canisterId,
   };
 
@@ -189,7 +197,10 @@ async function main() {
   console.log('ONCHAIN WASM HASH (from proposal.action.InstallCode.wasm_module_hash):');
   console.log(`  ${expectedWasmHash || 'Not found'}`);
   console.log('');
-  console.log('This hash was extracted directly from the onchain proposal payload,');
+  console.log('ONCHAIN ARG HASH (from proposal.action.InstallCode.arg_hash):');
+  console.log(`  ${expectedArgHash || 'Not found (no upgrade arguments)'}`);
+  console.log('');
+  console.log('These hashes were extracted directly from the onchain proposal payload,');
   console.log('not from the human-readable summary text.');
   console.log('─────────────────────────────────────────────────────────────────');
 

@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup Docker
+      - name: Setup Docker and Podman
         run: |
           # Install Docker CLI if not present
           if ! command -v docker &> /dev/null; then
@@ -35,6 +35,17 @@ jobs:
           fi
           # Disable BuildKit to avoid buildx requirement
           echo "DOCKER_BUILDKIT=0" >> $GITHUB_ENV
+
+          # Configure podman to use vfs storage driver (overlay-on-overlay not supported)
+          mkdir -p /etc/containers
+          cat > /etc/containers/storage.conf << 'EOF'
+          [storage]
+          driver = "vfs"
+          EOF
+
+          # Also configure for builder user
+          mkdir -p /home/builder/.config/containers
+          cp /etc/containers/storage.conf /home/builder/.config/containers/ 2>/dev/null || true
 
       - name: Free up disk space
         run: |
@@ -64,6 +75,15 @@ jobs:
         run: bash scripts/build.sh
         env:
           DOCKER_BUILDKIT: 0
+
+      - name: Install didc (for arg hash verification)
+        if: steps.fetch.outputs.skipped != 'true'
+        run: |
+          # Download and install didc for candid encoding
+          DIDC_VERSION="2024-04-05"
+          curl -fsSL "https://github.com/dfinity/candid/releases/download/${DIDC_VERSION}/didc-linux64" -o /usr/local/bin/didc
+          chmod +x /usr/local/bin/didc
+          didc --version
 
       - name: Compare hashes
         if: steps.fetch.outputs.skipped != 'true'
