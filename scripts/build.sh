@@ -46,6 +46,13 @@ find . -name "docker-build" -type f -exec sed -i 's/export DOCKER_BUILDKIT=1/exp
 echo ""
 echo "=== Running build steps ==="
 
+# Create marker file to prevent nested container spawning
+# The IC build scripts check for /home/ubuntu/.ic-build-container to detect
+# if they're already running inside the ic-build container
+mkdir -p /home/ubuntu
+touch /home/ubuntu/.ic-build-container
+echo "Created /home/ubuntu/.ic-build-container marker file"
+
 # Read build steps
 STEPS=$(node -e "JSON.parse(require('fs').readFileSync('../build-steps.json')).steps.forEach(s => console.log(s))")
 
