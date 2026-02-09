@@ -19,6 +19,8 @@ interface BuildSteps {
   steps: string[];
   wasmOutputPath: string;
   upgradeArgs: string | null;
+  upgradeArgsDid: string | null;
+  upgradeArgsType: string | null;
 }
 
 export function normalizeRepoUrl(url: string): string {
@@ -39,7 +41,9 @@ The proposal describes a canister upgrade. Extract the repository URL, build com
   "repoUrl": "https://github.com/org/repo",
   "steps": ["build command 1", "build command 2", ...],
   "wasmOutputPath": "path/to/output.wasm.gz",
-  "upgradeArgs": "(record {field = value})" or null
+  "upgradeArgs": "(record {field = value})" or null,
+  "upgradeArgsDid": "canister/candid.did" or null,
+  "upgradeArgsType": "(canister_arg)" or null
 }
 
 IMPORTANT:
@@ -47,6 +51,8 @@ IMPORTANT:
 - steps: ONLY the build commands, NO git commands (clone, fetch, checkout, cd)
 - wasmOutputPath: The path to the final WASM file (often ends in .wasm.gz)
 - upgradeArgs: The Candid-encoded upgrade arguments if mentioned in the proposal (look for "Upgrade Arguments" section with a candid expression like "(record {allowlist = null})"). Set to null if no upgrade arguments are specified.
+- upgradeArgsDid: If the proposal shows a didc encode command with -d flag (e.g., "didc encode -d canister/candid.did ..."), extract the .did file path. Set to null if not present.
+- upgradeArgsType: If the proposal shows a didc encode command with -t flag (e.g., "didc encode ... -t '(canister_arg)' ..."), extract the type annotation. Set to null if not present.
 - Return ONLY valid JSON, no markdown code blocks, no explanation
 
 Common build patterns:
@@ -99,7 +105,9 @@ function parseGeminiResponse(response: string): { repoUrl: string; steps: string
       repoUrl,
       steps: parsed.steps,
       wasmOutputPath: parsed.wasmOutputPath || 'output.wasm',
-      upgradeArgs: parsed.upgradeArgs || null
+      upgradeArgs: parsed.upgradeArgs || null,
+      upgradeArgsDid: parsed.upgradeArgsDid || null,
+      upgradeArgsType: parsed.upgradeArgsType || null,
     };
   } catch (err) {
     console.error('Failed to parse Gemini response:', response);
@@ -143,7 +151,7 @@ URL: ${proposalData.url}
   const response = await callGemini(prompt);
   console.log('Gemini response received');
 
-  const { repoUrl, steps, wasmOutputPath, upgradeArgs } = parseGeminiResponse(response);
+  const { repoUrl, steps, wasmOutputPath, upgradeArgs, upgradeArgsDid, upgradeArgsType } = parseGeminiResponse(response);
 
   console.log('');
   console.log('LLM EXTRACTED BUILD INSTRUCTIONS:');
@@ -155,6 +163,8 @@ URL: ${proposalData.url}
   console.log(`  Number of steps:  ${steps.length}`);
   console.log(`  WASM output path: ${wasmOutputPath}`);
   console.log(`  Upgrade args:     ${upgradeArgs || '(none)'}`);
+  if (upgradeArgsDid) console.log(`  Args .did file:   ${upgradeArgsDid}`);
+  if (upgradeArgsType) console.log(`  Args type:        ${upgradeArgsType}`);
 
   const buildSteps: BuildSteps = {
     commitHash: proposalData.commitHash,
@@ -163,6 +173,8 @@ URL: ${proposalData.url}
     steps,
     wasmOutputPath,
     upgradeArgs,
+    upgradeArgsDid,
+    upgradeArgsType,
   };
 
   writeFileSync('build-steps.json', JSON.stringify(buildSteps, null, 2));
