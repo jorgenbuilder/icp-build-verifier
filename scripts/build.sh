@@ -51,11 +51,9 @@ echo "Fetching commit $COMMIT_HASH..."
 git fetch --depth 1 origin "$COMMIT_HASH"
 git checkout "$COMMIT_HASH"
 
-# IC-monorepo-specific: Patch scripts that force DOCKER_BUILDKIT=1
-if [ "$BUILD_PROFILE" = "ic-monorepo" ]; then
-    echo "Patching docker-build scripts to disable BuildKit..."
-    find . -name "docker-build" -type f -exec sed -i 's/export DOCKER_BUILDKIT=1/export DOCKER_BUILDKIT=0/g' {} \;
-fi
+# Patch any scripts that force DOCKER_BUILDKIT=1 (runner lacks buildx)
+echo "Patching docker-build scripts to disable BuildKit..."
+find . -name "docker-build" -type f -exec sed -i 's/export DOCKER_BUILDKIT=1/export DOCKER_BUILDKIT=0/g' {} \;
 
 echo ""
 echo "=== Running build steps ==="
@@ -116,12 +114,12 @@ if [ "$BUILD_PROFILE" = "ic-monorepo" ]; then
         done <<< "$STEPS"
     fi
 else
-    # Standard profile: execute build steps directly, no special user or env vars
+    # Standard profile: execute build steps directly, no special user or IC-specific env vars
     while IFS= read -r step; do
         if [ -n "$step" ]; then
             echo ""
             echo ">>> Executing: $step"
-            eval "$step"
+            export DOCKER_BUILDKIT=0 && eval "$step"
         fi
     done <<< "$STEPS"
 fi
