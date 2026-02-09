@@ -32,16 +32,19 @@ This creates `proposal.json` with:
 
 Read `proposal.json` to understand what this proposal is about.
 
-### Step 2: Clone the IC Repository
+### Step 2: Clone the Source Repository
 
-The IC is hosted at `https://github.com/dfinity/ic`. Clone it to analyze the code:
+Read `proposal.json` to determine the source repository from the proposal summary. The proposal text typically mentions a GitHub URL like `https://github.com/dfinity/ic` or `https://github.com/dfinity/dogecoin-canister`.
+
+Clone the appropriate repository (default to `https://github.com/dfinity/ic` if not specified):
 
 ```bash
-git clone --depth 100 https://github.com/dfinity/ic /tmp/ic
-cd /tmp/ic
+# Example for dfinity/ic:
+git clone --depth 100 https://github.com/dfinity/ic /tmp/repo
+# Example for other repos:
+git clone --depth 100 https://github.com/dfinity/dogecoin-canister /tmp/repo
+cd /tmp/repo
 ```
-
-If the proposal specifies a different repository, clone that instead.
 
 ### Step 3: Analyze the Code Diff
 
@@ -117,18 +120,20 @@ Fill out the commentary schema with:
 
 ## Working with GitHub PRs
 
-To fetch PR information:
+To fetch PR information, use the correct repository (determined from the proposal):
 ```bash
-# Get PR details
-gh pr view <PR_NUMBER> --repo dfinity/ic --json title,body,comments,reviews
+# Get PR details (replace <ORG/REPO> with the actual repo, e.g., dfinity/ic or dfinity/dogecoin-canister)
+gh pr view <PR_NUMBER> --repo <ORG/REPO> --json title,body,comments,reviews
 
 # Or fetch directly
-curl -s "https://api.github.com/repos/dfinity/ic/pulls/<PR_NUMBER>" | jq '.body'
+curl -s "https://api.github.com/repos/<ORG/REPO>/pulls/<PR_NUMBER>" | jq '.body'
 ```
 
 ## Output Format
 
 Your final output must be valid JSON matching the schema in `config/commentary/schema.json`.
+
+**Important**: Include `repo_url` in your output JSON, set to the GitHub repository URL for the code being upgraded (e.g., `"repo_url": "https://github.com/dfinity/dogecoin-canister"`). This ensures commit links point to the correct repository.
 
 Output ONLY the JSON object, no markdown code fences or additional text.
 

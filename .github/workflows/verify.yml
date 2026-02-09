@@ -64,9 +64,6 @@ jobs:
         run: bash scripts/build.sh
         env:
           DOCKER_BUILDKIT: 0
-          # Tell build-ic.sh we're already in the correct container (ic-build)
-          # This skips nested container creation which fails on cgroups and disk space
-          DFINITY_CONTAINER: "true"
 
       - name: Install didc (for arg hash verification)
         if: steps.fetch.outputs.skipped != 'true'

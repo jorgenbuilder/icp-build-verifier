@@ -15,9 +15,20 @@ interface ProposalData {
 interface BuildSteps {
   commitHash: string;
   repoUrl: string;
+  buildProfile: 'ic-monorepo' | 'standard';
   steps: string[];
   wasmOutputPath: string;
   upgradeArgs: string | null;
+}
+
+export function normalizeRepoUrl(url: string): string {
+  return url.replace(/\/$/, '').replace(/\.git$/, '')
+    .replace(/\/tree\/[a-f0-9]+$/, '').replace(/\/commit\/[a-f0-9]+$/, '');
+}
+
+export function detectBuildProfile(repoUrl: string): 'ic-monorepo' | 'standard' {
+  const normalized = normalizeRepoUrl(repoUrl);
+  return normalized === 'https://github.com/dfinity/ic' ? 'ic-monorepo' : 'standard';
 }
 
 const EXTRACTION_PROMPT = `You are analyzing an ICP (Internet Computer Protocol) governance proposal to extract build verification instructions.
@@ -32,7 +43,7 @@ The proposal describes a canister upgrade. Extract the repository URL, build com
 }
 
 IMPORTANT:
-- repoUrl: The GitHub repository URL mentioned in the proposal (e.g., https://github.com/dfinity/ic or https://github.com/dfinity/dogecoin-canister). If not explicitly mentioned, default to "https://github.com/dfinity/ic"
+- repoUrl: The GitHub repository URL mentioned in the proposal (e.g., https://github.com/dfinity/ic, https://github.com/dfinity/dogecoin-canister, https://github.com/dfinity/ic-boundary). If not explicitly mentioned, default to "https://github.com/dfinity/ic". Note: dfinity/ic-boundary is a SEPARATE repo, not part of dfinity/ic.
 - steps: ONLY the build commands, NO git commands (clone, fetch, checkout, cd)
 - wasmOutputPath: The path to the final WASM file (often ends in .wasm.gz)
 - upgradeArgs: The Candid-encoded upgrade arguments if mentioned in the proposal (look for "Upgrade Arguments" section with a candid expression like "(record {allowlist = null})"). Set to null if no upgrade arguments are specified.
@@ -40,7 +51,8 @@ IMPORTANT:
 
 Common build patterns:
 - dfinity/ic: Uses ./ci/container/build-ic.sh -c, output in artifacts/canisters/
-- Other repos: May use ./scripts/docker-build, cargo build, etc.
+- dfinity/dogecoin-canister: Uses ./scripts/docker-build or similar
+- Other repos: May use cargo build, scripts/build.sh, etc.
 
 Proposal text:
 `;
@@ -82,8 +94,9 @@ function parseGeminiResponse(response: string): { repoUrl: string; steps: string
       throw new Error('Invalid response: steps must be an array');
     }
 
+    const repoUrl = normalizeRepoUrl(parsed.repoUrl || 'https://github.com/dfinity/ic');
     return {
-      repoUrl: parsed.repoUrl || 'https://github.com/dfinity/ic',
+      repoUrl,
       steps: parsed.steps,
       wasmOutputPath: parsed.wasmOutputPath || 'output.wasm',
       upgradeArgs: parsed.upgradeArgs || null
@@ -135,7 +148,10 @@ URL: ${proposalData.url}
   console.log('');
   console.log('LLM EXTRACTED BUILD INSTRUCTIONS:');
   console.log('─────────────────────────────────────────────────────────────────');
+  const buildProfile = detectBuildProfile(repoUrl);
+
   console.log(`  Repository:       ${repoUrl}`);
+  console.log(`  Build profile:    ${buildProfile}`);
   console.log(`  Number of steps:  ${steps.length}`);
   console.log(`  WASM output path: ${wasmOutputPath}`);
   console.log(`  Upgrade args:     ${upgradeArgs || '(none)'}`);
@@ -143,6 +159,7 @@ URL: ${proposalData.url}
   const buildSteps: BuildSteps = {
     commitHash: proposalData.commitHash,
     repoUrl,
+    buildProfile,
     steps,
     wasmOutputPath,
     upgradeArgs,
@@ -159,7 +176,11 @@ URL: ${proposalData.url}
   console.log('─────────────────────────────────────────────────────────────────');
 }
 
-main().catch((err) => {
-  console.error('Error extracting build steps:', err);
-  process.exit(1);
-});
+// Only run main() when executed directly, not when imported by tests
+const isDirectRun = !process.env.VITEST;
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error('Error extracting build steps:', err);
+    process.exit(1);
+  });
+}

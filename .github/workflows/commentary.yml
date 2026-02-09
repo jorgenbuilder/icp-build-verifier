@@ -87,10 +87,11 @@ jobs:
 
             Key steps:
             1. Run `npx tsx src/fetch-proposal.ts ${{ inputs.proposal_id }}` to fetch proposal data
-            2. Clone the IC repository if needed to analyze the code diff
-            3. Research context from GitHub PRs
+            2. Read proposal.json to determine the source repository, then clone it to analyze the code diff
+            3. Research context from GitHub PRs (using the correct repo from the proposal)
             4. Search DFINITY forum for discussion thread (see below)
             5. Generate structured commentary
+            6. Include `repo_url` in your output JSON (the GitHub URL for the code being upgraded)
 
             ## Forum Search Instructions
 
