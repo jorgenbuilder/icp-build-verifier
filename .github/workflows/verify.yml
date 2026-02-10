@@ -64,6 +64,12 @@ jobs:
         run: bash scripts/build.sh
         env:
           DOCKER_BUILDKIT: 0
+          # Tell build-ic.sh we're already in the correct container (ic-build)
+          # This skips nested container creation which fails on cgroups and disk space
+          DFINITY_CONTAINER: "true"
+          # Cloudflare R2-backed Bazel remote cache
+          BAZEL_REMOTE_CACHE_URL: ${{ secrets.BAZEL_REMOTE_CACHE_URL }}
+          BAZEL_REMOTE_CACHE_TOKEN: ${{ secrets.BAZEL_REMOTE_CACHE_TOKEN }}
 
       - name: Install didc (for arg hash verification)
         if: steps.fetch.outputs.skipped != 'true'
