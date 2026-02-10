@@ -112,6 +112,8 @@ if [ -n "$BAZEL_TARGET" ]; then
 build --remote_cache=$BAZEL_REMOTE_CACHE_URL
 build "--remote_header=Authorization=Bearer $BAZEL_REMOTE_CACHE_TOKEN"
 build --remote_upload_local_results=true
+build --experimental_remote_downloader=
+build --experimental_remote_cache_compression=false
 CACHEEOF
         chmod 644 "$CACHE_BAZELRC"
 
