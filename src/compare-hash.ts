@@ -18,6 +18,8 @@ interface BuildSteps {
   steps: string[];
   wasmOutputPath: string;
   upgradeArgs: string | null;
+  upgradeArgsDid: string | null;
+  upgradeArgsType: string | null;
 }
 
 export function computeSha256(filePath: string): string {
@@ -49,11 +51,17 @@ function writeGitHubSummary(content: string) {
   }
 }
 
-export function computeArgHash(upgradeArgs: string): string | null {
+export function computeArgHash(upgradeArgs: string, didFile?: string | null, typeName?: string | null): string | null {
   try {
-    // Use didc to encode the candid arguments and compute hash
-    // didc encode '(record {allowlist = null})' | xxd -r -p | sha256sum
-    const encoded = execSync(`didc encode '${upgradeArgs}'`, { encoding: 'utf-8' }).trim();
+    // Build didc encode command with optional type info
+    // e.g., didc encode -d canister/candid.did -t '(canister_arg)' '(variant { ... })'
+    let cmd = 'didc encode';
+    if (didFile) cmd += ` -d '${didFile}'`;
+    if (typeName) cmd += ` -t '${typeName}'`;
+    cmd += ` '${upgradeArgs}'`;
+
+    console.log(`Running: ${cmd}`);
+    const encoded = execSync(cmd, { encoding: 'utf-8' }).trim();
 
     // Convert hex string to bytes and compute sha256
     const bytes = Buffer.from(encoded, 'hex');
@@ -118,6 +126,8 @@ async function main() {
   let actualArgHash: string | null = null;
   const expectedArgHash = proposalData.expectedArgHash;
   const upgradeArgs = buildSteps?.upgradeArgs;
+  const upgradeArgsDid = buildSteps?.upgradeArgsDid;
+  const upgradeArgsType = buildSteps?.upgradeArgsType;
 
   if (expectedArgHash) {
     console.log('');
@@ -128,8 +138,19 @@ async function main() {
 
     if (upgradeArgs) {
       console.log(`Upgrade args from proposal: ${upgradeArgs}`);
+      if (upgradeArgsDid) console.log(`Args .did file: ${upgradeArgsDid}`);
+      if (upgradeArgsType) console.log(`Args type: ${upgradeArgsType}`);
       console.log('Computing SHA256 of encoded upgrade arguments...');
-      actualArgHash = computeArgHash(upgradeArgs);
+
+      // If we have a .did file, run from the repo directory so didc can find it
+      if (upgradeArgsDid && existsSync('repo')) {
+        const origDir = process.cwd();
+        process.chdir('repo');
+        actualArgHash = computeArgHash(upgradeArgs, upgradeArgsDid, upgradeArgsType);
+        process.chdir(origDir);
+      } else {
+        actualArgHash = computeArgHash(upgradeArgs, upgradeArgsDid, upgradeArgsType);
+      }
 
       if (actualArgHash) {
         console.log(`Expected arg hash: ${expectedArgHash}`);

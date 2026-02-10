@@ -83,6 +83,10 @@
         "required": ["type", "description"]
       }
     },
+    "repo_url": {
+      "type": "string",
+      "description": "The GitHub repository URL for the code being upgraded"
+    },
     "confidence_notes": {
       "type": "string",
       "description": "Any caveats, uncertainties, or limitations in the analysis"

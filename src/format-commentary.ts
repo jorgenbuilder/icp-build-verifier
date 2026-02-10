@@ -4,6 +4,7 @@ interface CommentarySchema {
   title: string;
   proposal_id: string;
   canister_id?: string;
+  repo_url?: string;
   commit_summaries?: Array<{
     commit_hash: string;
     summary: string;
@@ -159,11 +160,12 @@ function formatCommentaryAsMarkdown(commentary: CommentarySchema, cost: number, 
 
   // Commit Summaries
   if (commentary.commit_summaries && commentary.commit_summaries.length > 0) {
+    const repoUrl = (commentary.repo_url || 'https://github.com/dfinity/ic').replace(/\/+$/, '');
     lines.push('## Commits');
     lines.push('');
     for (const commit of commentary.commit_summaries) {
       const shortHash = commit.commit_hash.substring(0, 8);
-      lines.push(`### [\`${shortHash}\`](https://github.com/dfinity/ic/commit/${commit.commit_hash})`);
+      lines.push(`### [\`${shortHash}\`](${repoUrl}/commit/${commit.commit_hash})`);
       lines.push('');
       lines.push(commit.summary);
       lines.push('');

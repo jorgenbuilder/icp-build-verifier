@@ -14,11 +14,22 @@ if [ ! -f "proposal.json" ]; then
     exit 1
 fi
 
+# Build profile detection (shell fallback if not in JSON)
+detect_profile() {
+    local normalized
+    normalized=$(echo "$1" | sed 's/\.git$//' | sed 's:/$::')
+    [ "$normalized" = "https://github.com/dfinity/ic" ] && echo "ic-monorepo" || echo "standard"
+}
+
 # Parse JSON files using node
 COMMIT_HASH=$(node -e "console.log(JSON.parse(require('fs').readFileSync('build-steps.json')).commitHash)")
 REPO_URL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('build-steps.json')).repoUrl)")
 WASM_OUTPUT_PATH=$(node -e "console.log(JSON.parse(require('fs').readFileSync('build-steps.json')).wasmOutputPath)")
 WASM_FILENAME=$(basename "$WASM_OUTPUT_PATH")
+
+# Determine build profile
+BUILD_PROFILE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('build-steps.json')).buildProfile || '')" 2>/dev/null)
+[ -z "$BUILD_PROFILE" ] && BUILD_PROFILE=$(detect_profile "$REPO_URL")
 
 echo "Repository: $REPO_URL"
 echo "WASM filename: $WASM_FILENAME"

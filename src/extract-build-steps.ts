@@ -15,9 +15,22 @@ interface ProposalData {
 interface BuildSteps {
   commitHash: string;
   repoUrl: string;
+  buildProfile: 'ic-monorepo' | 'standard';
   steps: string[];
   wasmOutputPath: string;
   upgradeArgs: string | null;
+  upgradeArgsDid: string | null;
+  upgradeArgsType: string | null;
+}
+
+export function normalizeRepoUrl(url: string): string {
+  return url.replace(/\/$/, '').replace(/\.git$/, '')
+    .replace(/\/tree\/[a-f0-9]+$/, '').replace(/\/commit\/[a-f0-9]+$/, '');
+}
+
+export function detectBuildProfile(repoUrl: string): 'ic-monorepo' | 'standard' {
+  const normalized = normalizeRepoUrl(repoUrl);
+  return normalized === 'https://github.com/dfinity/ic' ? 'ic-monorepo' : 'standard';
 }
 
 const EXTRACTION_PROMPT = `You are analyzing an ICP (Internet Computer Protocol) governance proposal to extract build verification instructions.
@@ -28,19 +41,24 @@ The proposal describes a canister upgrade. Extract the repository URL, build com
   "repoUrl": "https://github.com/org/repo",
   "steps": ["build command 1", "build command 2", ...],
   "wasmOutputPath": "path/to/output.wasm.gz",
-  "upgradeArgs": "(record {field = value})" or null
+  "upgradeArgs": "(record {field = value})" or null,
+  "upgradeArgsDid": "canister/candid.did" or null,
+  "upgradeArgsType": "(canister_arg)" or null
 }
 
 IMPORTANT:
-- repoUrl: The GitHub repository URL mentioned in the proposal (e.g., https://github.com/dfinity/ic or https://github.com/dfinity/dogecoin-canister). If not explicitly mentioned, default to "https://github.com/dfinity/ic"
+- repoUrl: The GitHub repository URL mentioned in the proposal (e.g., https://github.com/dfinity/ic, https://github.com/dfinity/dogecoin-canister, https://github.com/dfinity/ic-boundary). If not explicitly mentioned, default to "https://github.com/dfinity/ic". Note: dfinity/ic-boundary is a SEPARATE repo, not part of dfinity/ic.
 - steps: ONLY the build commands, NO git commands (clone, fetch, checkout, cd)
 - wasmOutputPath: The path to the final WASM file (often ends in .wasm.gz)
 - upgradeArgs: The Candid-encoded upgrade arguments if mentioned in the proposal (look for "Upgrade Arguments" section with a candid expression like "(record {allowlist = null})"). Set to null if no upgrade arguments are specified.
+- upgradeArgsDid: If the proposal shows a didc encode command with -d flag (e.g., "didc encode -d canister/candid.did ..."), extract the .did file path. Set to null if not present.
+- upgradeArgsType: If the proposal shows a didc encode command with -t flag (e.g., "didc encode ... -t '(canister_arg)' ..."), extract the type annotation. Set to null if not present.
 - Return ONLY valid JSON, no markdown code blocks, no explanation
 
 Common build patterns:
 - dfinity/ic: Uses ./ci/container/build-ic.sh -c, output in artifacts/canisters/
-- Other repos: May use ./scripts/docker-build, cargo build, etc.
+- dfinity/dogecoin-canister: Uses ./scripts/docker-build or similar
+- Other repos: May use cargo build, scripts/build.sh, etc.
 
 Proposal text:
 `;
@@ -82,11 +100,14 @@ function parseGeminiResponse(response: string): { repoUrl: string; steps: string
       throw new Error('Invalid response: steps must be an array');
     }
 
+    const repoUrl = normalizeRepoUrl(parsed.repoUrl || 'https://github.com/dfinity/ic');
     return {
-      repoUrl: parsed.repoUrl || 'https://github.com/dfinity/ic',
+      repoUrl,
       steps: parsed.steps,
       wasmOutputPath: parsed.wasmOutputPath || 'output.wasm',
-      upgradeArgs: parsed.upgradeArgs || null
+      upgradeArgs: parsed.upgradeArgs || null,
+      upgradeArgsDid: parsed.upgradeArgsDid || null,
+      upgradeArgsType: parsed.upgradeArgsType || null,
     };
   } catch (err) {
     console.error('Failed to parse Gemini response:', response);
@@ -130,22 +151,30 @@ URL: ${proposalData.url}
   const response = await callGemini(prompt);
   console.log('Gemini response received');
 
-  const { repoUrl, steps, wasmOutputPath, upgradeArgs } = parseGeminiResponse(response);
+  const { repoUrl, steps, wasmOutputPath, upgradeArgs, upgradeArgsDid, upgradeArgsType } = parseGeminiResponse(response);
 
   console.log('');
   console.log('LLM EXTRACTED BUILD INSTRUCTIONS:');
   console.log('─────────────────────────────────────────────────────────────────');
+  const buildProfile = detectBuildProfile(repoUrl);
+
   console.log(`  Repository:       ${repoUrl}`);
+  console.log(`  Build profile:    ${buildProfile}`);
   console.log(`  Number of steps:  ${steps.length}`);
   console.log(`  WASM output path: ${wasmOutputPath}`);
   console.log(`  Upgrade args:     ${upgradeArgs || '(none)'}`);
+  if (upgradeArgsDid) console.log(`  Args .did file:   ${upgradeArgsDid}`);
+  if (upgradeArgsType) console.log(`  Args type:        ${upgradeArgsType}`);
 
   const buildSteps: BuildSteps = {
     commitHash: proposalData.commitHash,
     repoUrl,
+    buildProfile,
     steps,
     wasmOutputPath,
     upgradeArgs,
+    upgradeArgsDid,
+    upgradeArgsType,
   };
 
   writeFileSync('build-steps.json', JSON.stringify(buildSteps, null, 2));
@@ -159,7 +188,11 @@ URL: ${proposalData.url}
   console.log('─────────────────────────────────────────────────────────────────');
 }
 
-main().catch((err) => {
-  console.error('Error extracting build steps:', err);
-  process.exit(1);
-});
+// Only run main() when executed directly, not when imported by tests
+const isDirectRun = !process.env.VITEST;
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error('Error extracting build steps:', err);
+    process.exit(1);
+  });
+}
