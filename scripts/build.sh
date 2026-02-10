@@ -99,7 +99,23 @@ if [ -n "$BAZEL_TARGET" ]; then
     echo ""
     echo "=== TARGETED Bazel build: $BAZEL_TARGET ==="
 
-    BAZEL_CMD="bazel build --config=local --config=stamped $BAZEL_TARGET"
+    if [ -n "${BAZEL_REMOTE_CACHE_URL:-}" ] && [ -n "${BAZEL_REMOTE_CACHE_TOKEN:-}" ]; then
+        echo "Remote cache: $BAZEL_REMOTE_CACHE_URL"
+        # Write cache config to file to avoid shell escaping issues with auth header
+        CACHE_BAZELRC="/tmp/remote-cache.bazelrc"
+        cat > "$CACHE_BAZELRC" << CACHEEOF
+build --remote_cache=$BAZEL_REMOTE_CACHE_URL
+build --remote_header=Authorization=Bearer $BAZEL_REMOTE_CACHE_TOKEN
+build --remote_upload_local_results=true
+CACHEEOF
+        chmod 644 "$CACHE_BAZELRC"
+        # Skip --config=local (which disables remote cache) and override DFINITY's
+        # internal cache with ours via the additional bazelrc file
+        BAZEL_CMD="bazel build --bazelrc=$CACHE_BAZELRC --config=stamped $BAZEL_TARGET"
+    else
+        # No cache configured; use --config=local to disable DFINITY's unreachable internal cache
+        BAZEL_CMD="bazel build --config=local --config=stamped $BAZEL_TARGET"
+    fi
 
     if setup_builder_user; then
         echo ">>> Executing (as builder): $BAZEL_CMD"
