@@ -99,7 +99,7 @@ if [ -n "$BAZEL_TARGET" ]; then
     echo ""
     echo "=== TARGETED Bazel build: $BAZEL_TARGET ==="
 
-    BAZEL_CMD="bazel build --config=stamped $BAZEL_TARGET"
+    BAZEL_CMD="bazel build --config=local --config=stamped $BAZEL_TARGET"
 
     if setup_builder_user; then
         echo ">>> Executing (as builder): $BAZEL_CMD"
