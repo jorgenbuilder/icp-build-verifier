@@ -120,7 +120,7 @@ CACHEEOF
 
         # Skip --config=local (which disables remote cache) and override DFINITY's
         # internal cache with ours via the additional bazelrc file
-        BAZEL_CMD="bazel --bazelrc=$CACHE_BAZELRC build --config=stamped $BAZEL_TARGET"
+        BAZEL_CMD="bazel --bazelrc=$CACHE_BAZELRC build --announce_rc --config=stamped $BAZEL_TARGET"
     else
         echo "No remote cache configured (BAZEL_REMOTE_CACHE_URL=${BAZEL_REMOTE_CACHE_URL:-unset}, BAZEL_REMOTE_CACHE_TOKEN=${BAZEL_REMOTE_CACHE_TOKEN:+set})"
         # No cache configured; use --config=local to disable DFINITY's unreachable internal cache
