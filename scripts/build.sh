@@ -100,13 +100,7 @@ if [ -n "$BAZEL_TARGET" ]; then
     echo "=== TARGETED Bazel build: $BAZEL_TARGET ==="
 
     if [ -n "${BAZEL_REMOTE_CACHE_URL:-}" ] && [ -n "${BAZEL_REMOTE_CACHE_TOKEN:-}" ]; then
-        echo "Remote cache: $BAZEL_REMOTE_CACHE_URL"
-
-        # Test cache connectivity
-        CACHE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $BAZEL_REMOTE_CACHE_TOKEN" "$BAZEL_REMOTE_CACHE_URL/" 2>&1) || true
-        echo "Cache connectivity test: HTTP $CACHE_STATUS"
-
-        # Write cache config to file; quote the header flag to protect the space in "Bearer TOKEN"
+        echo "Remote cache enabled"
         CACHE_BAZELRC="/tmp/remote-cache.bazelrc"
         cat > "$CACHE_BAZELRC" << CACHEEOF
 build --remote_cache=$BAZEL_REMOTE_CACHE_URL
@@ -116,15 +110,8 @@ build --experimental_remote_downloader=
 build --experimental_remote_cache_compression=false
 CACHEEOF
         chmod 644 "$CACHE_BAZELRC"
-
-        echo "Cache bazelrc contents:"
-        cat "$CACHE_BAZELRC"
-
-        # Skip --config=local (which disables remote cache) and override DFINITY's
-        # internal cache with ours via the additional bazelrc file
-        BAZEL_CMD="bazel --bazelrc=$CACHE_BAZELRC build --announce_rc --config=stamped $BAZEL_TARGET"
+        BAZEL_CMD="bazel --bazelrc=$CACHE_BAZELRC build --config=stamped $BAZEL_TARGET"
     else
-        echo "No remote cache configured (BAZEL_REMOTE_CACHE_URL=${BAZEL_REMOTE_CACHE_URL:-unset}, BAZEL_REMOTE_CACHE_TOKEN=${BAZEL_REMOTE_CACHE_TOKEN:+set})"
         # No cache configured; use --config=local to disable DFINITY's unreachable internal cache
         BAZEL_CMD="bazel build --config=local --config=stamped $BAZEL_TARGET"
     fi
