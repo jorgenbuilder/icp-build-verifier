@@ -1,5 +1,5 @@
 name: Verify Proposal Build
-run-name: "Verify Proposal #${{ inputs.proposal_id }} (${{ inputs.runner || 'ubuntu-latest' }})"
+run-name: "Verify Proposal #${{ inputs.proposal_id }}"
 
 on:
   workflow_dispatch:
@@ -8,15 +8,10 @@ on:
         description: 'NNS Proposal ID to verify'
         required: true
         type: string
-      runner:
-        description: 'GitHub Actions runner label'
-        required: false
-        type: string
-        default: 'ubuntu-latest'
 
 jobs:
   verify:
-    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/dfinity/ic-build:latest
       options: --privileged -v /var/run/docker.sock:/var/run/docker.sock
